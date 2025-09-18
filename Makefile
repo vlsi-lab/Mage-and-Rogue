@@ -4,10 +4,10 @@ PYTHON = python3
 FUSESOC = fusesoc
 
 MAGE_CORE = vlsi:polito:mage-stream
-MAGE_CFG_HJSON ?= config/cfg_s_4x2_pipediv.hjson
+MAGE_CFG_HJSON ?= config/cfg_s_4x4_pipediv.hjson
 
 ### Regtool ###
-REGTOOL_SCRIPT = ./util/regtool.py
+REGTOOL_SCRIPT = ./../x-heep/hw/vendor/pulp_platform_gpio/util/reggen/regtool.py
 REGTOOL_DEST_DIR = ./hw/mage/configuration
 REGTOOL_SRC_FILE = ./hw/mage/configuration/mage_regs.hjson
 REGTOOL_SW_DEST_DIR = ./sw

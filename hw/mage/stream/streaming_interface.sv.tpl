@@ -66,7 +66,9 @@ module streaming_interface
   logic [N_DMA_CH-1:0][N_BITS-1:0] hw_r_fifo_dout;
   logic [N_DMA_CH-1:0] hw_w_fifo_push;
   logic [N_DMA_CH-1:0] hw_w_fifo_full;
+  logic [N_DMA_CH-1:0] hw_w_fifo_empty;
   logic [N_DMA_CH-1:0][N_BITS-1:0] hw_w_fifo_din;
+  logic [N_DMA_CH-1:0][N_BITS-1:0] hw_w_fifo_dout;
 
   // I/O Valid Signals
   logic [N_IN_STREAM-1:0][N_DMA_CH_PER_IN_STREAM-1:0] stream_in_dma_ch_valid;
@@ -121,11 +123,11 @@ module streaming_interface
           .testmode_i(1'b0),
           .flush_i(),
           .full_o(hw_w_fifo_full[wf]),
-          .empty_o(fifo_resp_o[wf].empty),
+          .empty_o(hw_w_fifo_empty[wf]),
           .usage_o(),
           .data_i(hw_w_fifo_din[wf]),
           .push_i(hw_w_fifo_push[wf]),
-          .data_o(fifo_resp_o[wf].data),
+          .data_o(hw_w_fifo_dout[wf]),
           .pop_i(fifo_req_i[wf].pop)
       );
     end
@@ -220,6 +222,8 @@ module streaming_interface
   // Response full signals
   always_comb begin
     for (int i = 0; i < N_DMA_CH; i = i + 1) begin
+      fifo_resp_o[i].empty = hw_w_fifo_empty[i];
+      fifo_resp_o[i].data = hw_w_fifo_dout[i];
       fifo_resp_o[i].full = hw_r_fifo_full[i];
       fifo_resp_o[i].alm_full = hw_r_usage[i] == 2'd3;
     end
