@@ -7,11 +7,8 @@ filesets:
 
   files_packages:
     files:  
-    - hw/mage/packages/obi_pkg.sv
-    - hw/mage/packages/reg_pkg.sv
     - hw/mage/packages/stream_intf_pkg.sv
     - hw/mage/packages/pea_pkg.sv
-    - hw/mage/packages/fifo_pkg.sv
     file_type: systemVerilogSource
 
   files_execute:
@@ -80,7 +77,6 @@ targets:
     - files_execute
     - files_stream
     - files_wrapper
-    - files_verilator_waiver
 
   sim:
     <<: *default

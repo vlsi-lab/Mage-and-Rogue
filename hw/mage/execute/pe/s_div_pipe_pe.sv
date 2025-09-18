@@ -315,7 +315,7 @@ module s_div_pipe_pe
     if (!rst_n_i) begin
       delay_op_out_d1_1 <= '0;
     end else begin
-      if (div_instr) begin
+      if (div_instr && !mage_done_i && pea_ready_i) begin
         for (int i = 0; i < N_DIV_STAGE; i++) begin
           if (i == 0) begin
             delay_op_out_d1_1[i] <= delay_op_out_d1[N_BITS];

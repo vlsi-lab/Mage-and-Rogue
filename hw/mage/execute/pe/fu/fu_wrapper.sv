@@ -40,12 +40,16 @@ module fu_wrapper
   ////////////////////////////////////////////////////////////////
 
   // accumulation ready-valid
-  logic [  15:0]       acc_cnt;
+  logic [  N_BITS-1:0] acc_cnt;
   logic                acc_valid;
   // ready-valid
   logic                valid;
   logic                valid_mo_instr;
   logic                mo_instr;
+  // +1 adder
+  logic [  N_BITS-1:0] add_one_op1;
+  logic [  N_BITS-1:0] add_one_op2;
+  logic [  N_BITS-1:0] add_one_res;
 
   logic [    N_BITS:0] add_res;
   logic [  N_BITS-1:0] mul_res;
@@ -68,11 +72,37 @@ module fu_wrapper
   logic [  N_BITS-1:0] op2_neg_d1;
 
   logic                sign_op1;
-  logic                sign_op2;
+  logic                sign_op1_d;
 
   logic [  N_BITS-1:0] temp_res;
   logic [  N_BITS-1:0] temp_res_neg;
   logic [  N_BITS-1:0] temp_op_reg;
+
+  /*
+    +1 adder shared between:
+      -> the ACC, SHACC, MAX, MAXS counter
+      -> the ABS operation in ABSMIN
+      -> the ABS operation in SGNCSUB
+  */
+  always_comb begin
+    add_one_op1 = '0;
+    add_one_op2 = '0;
+    if (instr_i == ACC || instr_i == SHACC || instr_i == MAX || instr_i == MAXS) begin
+      add_one_op1 = acc_cnt;
+      add_one_op2[0] = 1'b1;
+    end else if (instr_i == ABSMIN) begin
+      add_one_op1 = sign_op1 ? op1_neg : a_signed;
+      add_one_op2[0] = sign_op1 ? 1'b1 : 1'b0;
+    end else if (instr_i == SGNCSUB) begin
+      add_one_op1 = sign_op1_d ? temp_res_neg : temp_res;
+      add_one_op2[0] = sign_op1_d ? 1'b1 : 1'b0;
+    end
+  end
+
+  // +1 adder
+  always_comb begin
+    add_one_res = add_one_op1 + add_one_op2;
+  end
 
   ////////////////////////////////////////////////////////////////
   //                        Accumulation                        //
@@ -95,7 +125,7 @@ module fu_wrapper
           acc_cnt <= '0;
           acc_loopback_o <= 1'b0;
         end else if (ops_valid_i && pea_ready_i) begin
-          acc_cnt <= acc_cnt + 16'b1;
+          acc_cnt <= add_one_res;
           acc_loopback_o <= 1'b1;
         end
       end else begin
@@ -173,7 +203,7 @@ module fu_wrapper
   assign mul_res = mul_op1 * mul_op2;
 
   // 32-bit shifter
-  assign shift_res_ext = shift_op1 >>> shift_op2[4:0];
+  assign shift_res_ext = shift_op1 >>> shift_op2;
   assign shift_res = shift_res_ext[31:0];
 
   // LHS logic
@@ -191,8 +221,22 @@ module fu_wrapper
     end
   endgenerate
 
+  /*
+    Sign of operand a:
+      -> the sign of operand a is taken
+      -> it is delayed of one cycle when instruction is SGNCSUB
+  */
   assign sign_op1 = a_signed[N_BITS-1];
-  assign sign_op2 = b_signed[N_BITS-1];
+
+  always_ff @(posedge clk_i, negedge rst_n_i) begin
+    if (!rst_n_i) begin
+      sign_op1_d <= 1'b0;
+    end else begin
+      if (pea_ready_i && instr_i == SGNCSUB) begin
+        sign_op1_d <= sign_op1;
+      end
+    end
+  end
 
   /*
     Temporary result for 2-cycle instructions:
@@ -214,6 +258,10 @@ module fu_wrapper
             temp_res <= add_res[N_BITS:1];
           end else if (instr_i == MULCARSH) begin
             temp_res <= mul_res;
+          end else if (instr_i == ABSMIN) begin
+            temp_res <= add_one_res;
+          end else if (instr_i == SGNCSUB) begin
+            temp_res <= add_res[N_BITS:1];
           end else if (instr_i == SUBPOW) begin
             temp_res <= add_res[N_BITS:1];
           end else if (instr_i == CLSHSUB) begin
@@ -237,8 +285,10 @@ module fu_wrapper
       temp_op_reg <= '0;
     end else begin
       if (pea_ready_i) begin
-        if (instr_i == CADDMUL || instr_i == CMULADD || instr_i == CLSHSUB) begin
+        if (instr_i == CADDMUL || instr_i == CMULADD || instr_i == ABSMIN || instr_i == CLSHSUB) begin
           temp_op_reg <= b_signed;
+        end else if (instr_i == SGNCSUB) begin
+          temp_op_reg <= a_signed;
         end
       end
     end
@@ -353,13 +403,13 @@ module fu_wrapper
       end
 
       ABSMIN: begin
-        add_op1 = (sign_op1 == sign_op2) ? {a_signed, 1'b1} : ((sign_op1 && !sign_op2) ? {a_signed, 1'b0} : '0);
-        add_op2 = (sign_op1 == sign_op2) ? {op2_neg, 1'b1} : ((sign_op1 && !sign_op2) ? {b_signed, 1'b0} : '0);
+        add_op1 = {temp_res, 1'b1};
+        add_op2 = {op2_neg_d1, 1'b1};
       end
 
       SGNCSUB: begin
-        add_op1 = (sign_op1 == 1'b0) ? {const_i, 1'b1} : {b_signed, 1'b1};
-        add_op2 = (sign_op1 == 1'b0) ? {op2_neg, 1'b1} : {~const_i, 1'b1};
+        add_op1 = {const_i, 1'b1};
+        add_op2 = {op2_neg, 1'b1};
       end
 
       default: begin
@@ -403,11 +453,8 @@ module fu_wrapper
       SHACC: res_o = add_res[N_BITS:1];
       CLSHSUB: res_o = add_res[N_BITS:1];
       MULCARSH: res_o = shift_res;
-      ABSMIN: res_o = (!sign_op1 && sign_op2) ? b_signed :
-                      (sign_op1 == sign_op2 && sign_op1 == add_res[N_BITS]) ? b_signed :
-                      (sign_op1 && !sign_op2 && add_res[N_BITS]) ? b_signed :
-                      a_signed;                      
-      SGNCSUB: res_o = add_res[N_BITS:1];
+      ABSMIN: res_o = (add_res[N_BITS-1]) ? temp_res : temp_op_reg;
+      SGNCSUB: res_o = (|temp_op_reg == 1'b0) ? '0 : add_one_res;
       SGNSEL: res_o = delay_sign_i ? b_i : a_i;
       default: res_o = 0;
     endcase
