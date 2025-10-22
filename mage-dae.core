@@ -29,17 +29,13 @@ filesets:
     - hw/mage/configuration/peripheral_regs.sv
     - hw/mage/xbars/age_to_banks/xbar_age_to_banks.sv
     - hw/mage/xbars/banks_pea/load_store_stream.sv
-    - hw/mage/xbars/banks_pea/xbar_banks_pea_bb.sv
     - hw/mage/xbars/banks_pea/xbar_banks_pea.sv
-    - hw/mage/xbars/banks_pea/xbar_banks_pea_pipelined.sv
     - hw/mage/execute/pe/dae/fu/fu_dae_full_gemm.sv
-    - hw/mage/execute/pe/dae/pe_dae_full_gemm.sv
     - hw/mage/execute/pe/dae/fu/fu_dae_part_gemm.sv
-    - hw/mage/execute/pe/dae/pe_dae_part_gemm.sv
     - hw/mage/execute/pe/dae/fu/fu_dae_part_gemm_acc.sv
-    - hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv
     - hw/mage/execute/pe/dae/fu/fu_dae_full_act.sv
-    - hw/mage/execute/pe/dae/pe_dae_full_act.sv
+    - hw/mage/execute/pe/dae/pe_dae.sv
+    - hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv
     - hw/mage/execute/pea.sv
     - hw/mage_top.sv
     file_type: systemVerilogSource
