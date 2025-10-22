@@ -42,8 +42,6 @@ module mage_wrapper
 %if dae_cgra == 1:
   //mage fsm state
   state_t                                                  state;
-  //block size for dmem decoder
-  logic   [                    3:0]                        reg_block_size;
   ////////////////////////////////////////////////////////////////
   //                agu signals to Data Memory                 //
   ////////////////////////////////////////////////////////////////
@@ -58,6 +56,7 @@ module mage_wrapper
   ////////////////////////////////////////////////////////////////
   logic   [            N_BANKS-1:0]                        dmem_req;
   logic   [            N_BANKS-1:0]                        dmem_we;
+  logic   [            N_BANKS-1:0][3:0]                   dmem_be;
   logic   [            N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] dmem_addr;
   logic   [            N_BANKS-1:0][           N_BITS-1:0] dmem_wdata;
   logic   [            N_BANKS-1:0][           N_BITS-1:0] dmem_rdata;
@@ -66,6 +65,7 @@ module mage_wrapper
   ////////////////////////////////////////////////////////////////
   logic                                                    ext_dmem_req;
   logic                                                    ext_dmem_we;
+  logic   [3:0]                                            ext_dmem_be;
   logic   [32-1:0]                        ext_dmem_addr;
   logic   [32-1:0]                        ext_dmem_wdata;
   logic   [32-1:0]                        ext_dmem_rdata;
@@ -91,7 +91,6 @@ module mage_wrapper
       .dmem_addr_o(agu_dmem_addr),
       .dmem_wdata_o(agu_dmem_wdata),
       .dmem_rdata_i(agu_dmem_rdata),
-      .reg_block_size_o(reg_block_size),
       .mage_intr_o(mage_intr_o),
 %endif
       .reg_req_i(reg_req_i),
@@ -107,7 +106,7 @@ module mage_wrapper
       .rst_n_i(rst_n_i),
       .dmem_set_retentive_i(1'b0),
       .dmem_req_i(dmem_req),
-      .dmem_be_i({N_BANKS{1'b1}}),
+      .dmem_be_i(dmem_be),
       .dmem_we_i(dmem_we),
       .dmem_addr_i(dmem_addr),
       .dmem_wdata_i(dmem_wdata),
@@ -129,10 +128,12 @@ module mage_wrapper
       .agu_dmem_wdata_i(agu_dmem_wdata),
       .ext_dmem_req_i(ext_dmem_req),
       .ext_dmem_we_i(ext_dmem_we),
+      .ext_dmem_be_i(ext_dmem_be),
       .ext_dmem_addr_i(ext_dmem_addr),
       .ext_dmem_wdata_i(ext_dmem_wdata),
       .dmem_req_o(dmem_req),
       .dmem_we_o(dmem_we),
+      .dmem_be_o(dmem_be),
       .dmem_addr_o(dmem_addr),
       .dmem_wdata_o(dmem_wdata),
       .agu_dmem_rdata_o(agu_dmem_rdata),
@@ -163,7 +164,7 @@ module mage_wrapper
   assign ext_dmem_req        = slave_req_i.req;
   assign ext_dmem_addr       = slave_req_i.addr;
   assign ext_dmem_we         = slave_req_i.we;
-  //assign cm_be               = slave_req_i.be;
+  assign ext_dmem_be         = slave_req_i.be;
   assign ext_dmem_wdata      = slave_req_i.wdata;
 %endif
 
