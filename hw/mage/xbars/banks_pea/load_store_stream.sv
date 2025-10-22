@@ -9,7 +9,7 @@
 //              Based on the selectors, an AGE in a group is selected to decide which bank to connect to PE in banks-pea xbar.
 
 module load_store_stream
-  import mage_pkg::*;
+  import agu_pkg::*;
   import pea_pkg::*;
 (
     //CSRs selectors that determine which AGE in a group decides which bank to connect to PE in banks-pea xbar

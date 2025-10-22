@@ -8,7 +8,7 @@
 // Description: Package for crossbars
 
 package xbar_pkg;
-  import mage_pkg::*;
+  import agu_pkg::*;
   import pea_pkg::*;
   <%import math as m%>
   localparam unsigned N_CFG_REGS_LOAD_STREAM = ${int(m.ceil(((n_age_tot*m.log2(n_age_per_stream))*kernel_len)/32))};

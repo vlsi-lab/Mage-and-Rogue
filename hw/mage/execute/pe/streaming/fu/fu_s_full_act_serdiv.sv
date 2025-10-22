@@ -2,12 +2,12 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: fu_wrapper_div.sv
+// File: fu_s_full_act_serdiv.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: wrapper for functional unit with multy-cycle radix-configurable divider
+// Description: FU for streaming mode supporting int32 computation of classic gemm-related operations and activations with serial divider
 
-module fu_wrapper_div
+module fu_s_full_act_serdiv
   import pea_pkg::*;
 (
     input  logic                   clk_i,

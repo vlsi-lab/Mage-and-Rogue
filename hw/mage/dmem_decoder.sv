@@ -10,34 +10,34 @@
 
 module dmem_decoder
   import pea_pkg::*;
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
-    input clk_i,
-    input rst_n_i,
-    input  state_t                                                  state_i,
+    input                                               clk_i,
+    input                                               rst_n_i,
+    input  state_t                                      state_i,
     // cfg extenral data transfer
-    input [3:0] reg_block_size_i,
+    input          [        3:0]                        reg_block_size_i,
     //Mage to Data Memory
-    input  logic   [            N_BANKS-1:0]                        mage_dmem_req_i,
-    input  logic   [            N_BANKS-1:0]                        mage_dmem_we_i,
-    input  logic   [            N_BANKS-1:0]                        mage_dmem_valid_i,
-    input  logic   [            N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] mage_dmem_addr_i,
-    input  logic   [            N_BANKS-1:0][           N_BITS-1:0] mage_dmem_wdata_i,
+    input  logic   [N_BANKS-1:0]                        agu_dmem_req_i,
+    input  logic   [N_BANKS-1:0]                        agu_dmem_we_i,
+    input  logic   [N_BANKS-1:0]                        agu_dmem_valid_i,
+    input  logic   [N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] agu_dmem_addr_i,
+    input  logic   [N_BANKS-1:0][           N_BITS-1:0] agu_dmem_wdata_i,
     //Extern to Data Memory
-    input  logic                                                    ext_dmem_req_i,
-    input  logic                                                    ext_dmem_we_i,
-    input  logic   [32-1:0]                        ext_dmem_addr_i,
-    input  logic   [32-1:0]                        ext_dmem_wdata_i,
+    input  logic                                        ext_dmem_req_i,
+    input  logic                                        ext_dmem_we_i,
+    input  logic   [     32-1:0]                        ext_dmem_addr_i,
+    input  logic   [     32-1:0]                        ext_dmem_wdata_i,
     //Actual outputs to Data Memory
-    output logic   [            N_BANKS-1:0]                        dmem_req_o,
-    output logic   [            N_BANKS-1:0]                        dmem_we_o,
-    output logic   [            N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] dmem_addr_o,
-    output logic   [            N_BANKS-1:0][           N_BITS-1:0] dmem_wdata_o,
-    output logic   [            N_BANKS-1:0][           N_BITS-1:0] mage_dmem_rdata_o,
-    input  logic   [            N_BANKS-1:0][           N_BITS-1:0] dmem_rdata_i,
-    output logic                                                    ext_dmem_valid_o,
-    output logic                                                    ext_dmem_gnt_o,
-    output logic   [32-1:0]                        ext_dmem_rdata_o
+    output logic   [N_BANKS-1:0]                        dmem_req_o,
+    output logic   [N_BANKS-1:0]                        dmem_we_o,
+    output logic   [N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] dmem_addr_o,
+    output logic   [N_BANKS-1:0][           N_BITS-1:0] dmem_wdata_o,
+    output logic   [N_BANKS-1:0][           N_BITS-1:0] agu_dmem_rdata_o,
+    input  logic   [N_BANKS-1:0][           N_BITS-1:0] dmem_rdata_i,
+    output logic                                        ext_dmem_valid_o,
+    output logic                                        ext_dmem_gnt_o,
+    output logic   [     32-1:0]                        ext_dmem_rdata_o
 
 
 
@@ -46,15 +46,15 @@ module dmem_decoder
   localparam logic [31:0] START_ADDRESS = 32'hF0000000 + 32'h00000000;
   localparam logic [31:0] SIZE = 32'h100000;
 
-  logic [            N_BANKS-1:0] ext_dmem_req;
-  logic [            N_BANKS-1:0] ext_dmem_req_d;
-  logic [            N_BANKS-1:0] ext_dmem_we;
-  logic                           is_dmem_address;  //checks start address peripherals
-  logic [32-1:0] addr_lrs_2;
-  logic [32-1:0] ext_dmem_addr;
-  logic [N_BANKS-1:0]             active_banks;
-  logic [$clog2(BANK_SIZE)-1:0]   addr_to_bank;
-  logic [N_BANKS-1:0][32-1:0] ext_dmem_rdata;
+  logic [          N_BANKS-1:0]         ext_dmem_req;
+  logic [          N_BANKS-1:0]         ext_dmem_req_d;
+  logic [          N_BANKS-1:0]         ext_dmem_we;
+  logic                                 is_dmem_address;  //checks start address peripherals
+  logic [               32-1:0]         addr_lrs_2;
+  logic [               32-1:0]         ext_dmem_addr;
+  logic [          N_BANKS-1:0]         active_banks;
+  logic [$clog2(BANK_SIZE)-1:0]         addr_to_bank;
+  logic [          N_BANKS-1:0][32-1:0] ext_dmem_rdata;
 
 
   assign addr_lrs_2 = ext_dmem_addr_i >> 2;
@@ -134,13 +134,13 @@ module dmem_decoder
 
   always_ff @(posedge clk_i or negedge rst_n_i) begin
     if (~rst_n_i) begin
-      ext_dmem_req_d <= '0;
+      ext_dmem_req_d   <= '0;
       ext_dmem_valid_o <= '0;
-      ext_dmem_gnt_o <= '0;
+      ext_dmem_gnt_o   <= '0;
     end else begin
       ext_dmem_valid_o <= |ext_dmem_req;
-      ext_dmem_gnt_o <= |ext_dmem_req;
-      ext_dmem_req_d <= ext_dmem_req;
+      ext_dmem_gnt_o   <= |ext_dmem_req;
+      ext_dmem_req_d   <= ext_dmem_req;
     end
   end
 
@@ -151,21 +151,21 @@ module dmem_decoder
 
       EXEC: begin
 
-        dmem_req_o = mage_dmem_req_i | ext_dmem_req;
-        dmem_we_o  = mage_dmem_we_i | ext_dmem_we;
+        dmem_req_o = agu_dmem_req_i | ext_dmem_req;
+        dmem_we_o  = agu_dmem_we_i | ext_dmem_we;
 
         for (int i = 0; i < N_BANKS; i++) begin
-          dmem_addr_o[i] = (ext_dmem_req[i] == 1'b1) ? addr_to_bank : mage_dmem_addr_i[i];
-          dmem_wdata_o[i] = (ext_dmem_req[i] == 1'b1) ? ext_dmem_wdata_i : mage_dmem_wdata_i[i];
+          dmem_addr_o[i]  = (ext_dmem_req[i] == 1'b1) ? addr_to_bank : agu_dmem_addr_i[i];
+          dmem_wdata_o[i] = (ext_dmem_req[i] == 1'b1) ? ext_dmem_wdata_i : agu_dmem_wdata_i[i];
         end
 
         ext_dmem_rdata_o = '0;
 
         for (int i = 0; i < N_BANKS; i++) begin
-          if (mage_dmem_valid_i[i] == 1'b1) begin
-            mage_dmem_rdata_o[i] = dmem_rdata_i[i];
+          if (agu_dmem_valid_i[i] == 1'b1) begin
+            agu_dmem_rdata_o[i] = dmem_rdata_i[i];
           end else begin
-            mage_dmem_rdata_o[i] = '0;
+            agu_dmem_rdata_o[i] = '0;
           end
         end
 
@@ -176,7 +176,7 @@ module dmem_decoder
         dmem_we_o  = ext_dmem_we;
 
         for (int i = 0; i < N_BANKS; i++) begin
-          dmem_addr_o[i] = (ext_dmem_req[i] == 1'b1) ? addr_to_bank : '0;
+          dmem_addr_o[i]  = (ext_dmem_req[i] == 1'b1) ? addr_to_bank : '0;
           dmem_wdata_o[i] = ext_dmem_wdata_i;
         end
 
@@ -189,7 +189,7 @@ module dmem_decoder
           ext_dmem_rdata_o |= ext_dmem_rdata[i];
         end
 
-        mage_dmem_rdata_o = '0;
+        agu_dmem_rdata_o = '0;
       end
     endcase
   end

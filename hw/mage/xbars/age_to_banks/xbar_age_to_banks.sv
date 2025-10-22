@@ -10,7 +10,7 @@
 
 module xbar_age_to_banks
   import pea_pkg::*;
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
     //Input signals from AGE Group
     input  logic [  N_AGE_PER_STREAM-1:0][         NBIT_ADDR-1:0] age_addr_i,

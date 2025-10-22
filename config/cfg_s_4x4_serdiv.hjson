@@ -9,8 +9,8 @@
 
 {
 
-    enable_decoupling : 0,
-    enable_streaming_interface : 1,
+    dae_cgra : 0,
+    streaming_cgra : 1,
 
     common_params: {
         n_pea_rows: 4,

@@ -2,13 +2,13 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: mage.sv
+// File: agu.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
 // Description: Address Generation Unit top module
 
-module mage
-  import mage_pkg::*;
+module agu
+  import agu_pkg::*;
   import pea_pkg::*;
 (
     input logic clk_i,
@@ -32,10 +32,6 @@ module mage
     ////////////////////////////////////////////////////////////////
     input logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_iv_contraints_i,
     ////////////////////////////////////////////////////////////////
-    //                        Stride Sizes                        //
-    ////////////////////////////////////////////////////////////////
-    input logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] reg_age_strides_i,
-    ////////////////////////////////////////////////////////////////
     //                   Streams Configuration                    //
     ////////////////////////////////////////////////////////////////
     input logic [ACC_CFGMEM_SIZE-1:0][N_AGE_TOT-1:0][NBIT_CFG_STREAM_WORD-1:0] cfgmem_content_i,
@@ -53,13 +49,13 @@ module mage
     ////////////////////////////////////////////////////////////////
     //                Interface to Multi-Bank SpM                 //
     ////////////////////////////////////////////////////////////////
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_ADDR-1:0] mage_addr_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][N_BANKS_PER_STREAM-1:0] mage_bank_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] mage_bank_ls_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_valid_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_valid_ls_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_lns_o,
-    output logic mage_pea_acc_reset_o
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_ADDR-1:0] agu_addr_o,
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][N_BANKS_PER_STREAM-1:0] agu_bank_o,
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] agu_bank_ls_o,
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid_o,
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid_ls_o,
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_lns_o,
+    output logic agu_pea_acc_reset_o
 );
 % if kernel_len != 1:
   ////////////////////////////////////////////////////////////////
@@ -71,17 +67,20 @@ module mage
   ////////////////////////////////////////////////////////////////
   //              Configuration Dispatcher Outputs              //
   ////////////////////////////////////////////////////////////////
-  logic [N_AGE_TOT-1:0] is_age_active_rou;
-  logic [N_AGE_TOT-1:0] is_age_active;
-  logic [N_AGE_TOT-1:0][LOG2_HWLP_RF_SIZE-1:0] hwlp_sel;
-  logic [N_AGE_TOT-1:0][LOG2_N_LP-1+1:0] iv_contraints_sel;
-  logic [N_AGE_TOT-1:0][NBIT_IV_CONST-1:0] const_iv;
-  logic [N_AGE_TOT-1:0][NBIT_N_BANKS-1:0] n_banks;
-  logic [N_AGE_TOT-1:0][NBIT_START_BANK-1:0] start_banks;
-  logic [N_AGE_TOT-1:0][NBIT_BLOCK_SIZE-1:0] block_size;
-  logic [N_AGE_TOT-1:0] stream_lns;
-  logic [N_AGE_TOT-1:0] is_acc_store;
-  logic [N_AGE_TOT-1:0] is_acc_store_rou;
+  logic [N_AGE_TOT-1:0] rou_is_age_active;
+  logic [N_AGE_TOT-1:0][LOG2_HWLP_RF_SIZE-1:0] rou_hwlp_sel;
+  logic [N_AGE_TOT-1:0][LOG2_N_LP-1+1:0] rou_iv_contraints_sel;
+  logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0] rou_iv_constraints;
+  logic [N_AGE_TOT-1:0] rou_is_acc_store;
+
+  logic [N_AGE_TOT-1:0] age_is_age_active;
+  logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0] age_const_iv;
+  logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] age_strides;
+  logic [N_AGE_TOT-1:0][NBIT_N_BANKS-1:0] age_n_banks;
+  logic [N_AGE_TOT-1:0][NBIT_START_BANK-1:0] age_start_banks;
+  logic [N_AGE_TOT-1:0][NBIT_BLOCK_SIZE-1:0] age_block_size;
+  logic [N_AGE_TOT-1:0] age_stream_lns;
+  logic [N_AGE_TOT-1:0] age_stream_lns;
   ////////////////////////////////////////////////////////////////
   //                        HWLP Outputs                        //
   ////////////////////////////////////////////////////////////////
@@ -97,26 +96,13 @@ module mage
   ////////////////////////////////////////////////////////////////
   //                      HWLP ROU Outputs                      //
   ////////////////////////////////////////////////////////////////
-  logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] hwlp_rou_in_reg;
-  logic [N_AGE_TOT-1:0] stream_valid_in_reg;
-  logic [N_AGE_TOT-1:0] pea_acc_reset_in_reg;
-  ////////////////////////////////////////////////////////////////
-  //                   Pipe Registers Signals                   //
-  ////////////////////////////////////////////////////////////////
-  logic [N_AGE_TOT-1:0] stream_valid_out_reg;
-  logic [N_AGE_TOT-1:0] pea_acc_reset_out_reg;
-  logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] hwlp_rou_out_reg;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] stream_pea_acc_reset_out_reg;
+  logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] rou_to_age_hwlp;
+  logic [N_AGE_TOT-1:0] rou_to_age_stream_valid;
+  logic [N_AGE_TOT-1:0] rou_to_age_pea_acc_reset;
   ////////////////////////////////////////////////////////////////
   //                      AGE Unit Outputs                      //
   ////////////////////////////////////////////////////////////////
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_ADDR-1:0] mage_addr_in_reg;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][N_BANKS_PER_STREAM-1:0] mage_bank_in_reg;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] mage_bank_ls_in_reg;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] mage_bank_ls_out_age;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_valid_in_reg;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_lns_in_reg;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] stream_pea_acc_reset_in_reg;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] age_pea_acc_reset;
   ////////////////////////////////////////////////////////////////
   //                     Start/End Signals                      //
   ////////////////////////////////////////////////////////////////
@@ -126,61 +112,7 @@ module mage
   logic [N_AGE_TOT-1:0] hwlp_rou_end_lp;
   logic [N_AGE_TOT-1:0] stream_active;
 
-
-  ////////////////////////////////////////////////////////////////
-  //                                                            //
-  //                     Pipeline Registers                     //
-  //                                                            //
-  ////////////////////////////////////////////////////////////////
-  always_ff @(posedge clk_i or negedge rst_n_i) begin
-    if (~rst_n_i) begin
-
-      // AGU outputs
-      mage_addr_o <= '0;
-      mage_bank_o <= '0;
-      mage_bank_ls_o <= '0;
-      mage_valid_o <= '0;
-      mage_valid_ls_o <= '0;
-      mage_lns_o <= '0;
-
-      // AGU bank_ls signal delayed one extra cycle
-      mage_bank_ls_in_reg <= '0;
-
-      // ROU - AGU stream_valid signals
-      stream_valid_out_reg <= '0;
-      hwlp_rou_out_reg <= '0;
-
-      // ROU - AGU pea_acc signals
-      pea_acc_reset_out_reg <= '0;
-      stream_pea_acc_reset_out_reg <= '0;
-      
-    end else begin
-      if (start_i) begin
-        
-        // ROU - AGU pea_acc signals
-        stream_pea_acc_reset_out_reg <= stream_pea_acc_reset_in_reg;
-        pea_acc_reset_out_reg <= pea_acc_reset_in_reg;
-        
-        // ROU - AGU stream_valid signals
-        stream_valid_out_reg <= stream_valid_in_reg;
-        hwlp_rou_out_reg <= hwlp_rou_in_reg;
-
-        // AGU bank_ls signal delayed one extra cycle
-        mage_bank_ls_in_reg <= mage_bank_ls_out_age;
-        mage_bank_ls_o <= mage_bank_ls_in_reg;
-
-        // AGU outputs
-        mage_addr_o <= mage_addr_in_reg;
-        mage_bank_o <= mage_bank_in_reg;
-        mage_valid_o <= mage_valid_in_reg;
-        mage_valid_ls_o <= mage_valid_o;
-        mage_lns_o <= mage_lns_in_reg;
-
-      end
-    end
-  end
-
-  //mage cfgmem controller
+  //agu cfgmem controller
   k_controller k_controller_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
@@ -201,8 +133,6 @@ module mage
     end else begin
       if(hwlp_end_lp) begin
         hwlp_end_lp_set <= 1'b1;
-      end else begin
-        hwlp_end_lp_set <= hwlp_end_lp_set;
       end
     end
   end
@@ -240,49 +170,49 @@ module mage
   hwlp_rou hwlp_rou_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
-      .hwlp_sel_i(hwlp_sel),
+      .hwlp_sel_i(rou_hwlp_sel),
       .hwlp_rf_i(hwlp_rf),
       .end_lp_i(hwlp_rf_end_lp),
       .hwlp_end_condition_i(hwlp_rf_end_condition),
-      .is_age_active_i(is_age_active_rou),
-      .reg_iv_constraints_i(reg_iv_contraints_i),
-      .iv_constraints_sel_i(iv_contraints_sel),
+      .is_age_active_i(rou_is_age_active),
+      .reg_iv_contraints_i(reg_iv_contraints_i),
+      .iv_constraints_sel_i(rou_iv_contraints_sel),
       .hwlp_valid_i(hwlp_rf_valid),
-      .is_acc_store_rou_i(is_acc_store_rou),
+      .is_acc_store_rou_i(rou_is_acc_store),
       .reg_acc_vec_mode_i(reg_acc_vec_mode_i),
-      .stream_valid_o(stream_valid_in_reg),
-      .pea_acc_reset_o(pea_acc_reset_in_reg),
-      .hwlp_rou_o(hwlp_rou_in_reg),
+      .stream_valid_o(rou_to_age_stream_valid),
+      .pea_acc_reset_o(rou_to_age_pea_acc_reset),
+      .hwlp_rou_o(rou_to_age_hwlp),
       .end_lp_o(hwlp_rou_end_lp)
   );
 
   //age_unit module
   age_unit age_unit_inst (
-      .clk_i(clk_i),
-      .rst_n_i(rst_n_i),
-      .start_i(start_i),
-      .end_lp_i(hwlp_rou_end_lp),
-      .reg_age_strides_i(reg_age_strides_i),
-      .rou_i(hwlp_rou_out_reg),
-      .pea_acc_reset_i(pea_acc_reset_out_reg),
-      .stream_valid_i(stream_valid_out_reg),
-      .is_age_active_i(is_age_active),
-      .const_iv_i(const_iv),
-      .n_banks_i(n_banks),
-      .start_banks_i(start_banks),
-      .block_size_i(block_size),
-      .is_acc_store_i(is_acc_store),
-      .stream_lns_i(stream_lns),
-      .stream_addr_o(mage_addr_in_reg),
-      .stream_bank_o(mage_bank_in_reg),
-      .stream_bank_ls_o(mage_bank_ls_out_age),
-      .stream_pea_acc_reset_o(stream_pea_acc_reset_in_reg),
-      .stream_valid_o(mage_valid_in_reg),
-      .stream_lns_o(mage_lns_in_reg),
-      .stream_active_o(stream_active)
-  );
+    .clk_i(clk_i),
+    .rst_n_i(rst_n_i),
+    .start_i(start_i),
+    .end_lp_i(hwlp_rou_end_lp),
+    .age_strides_i(age_strides),
+    .rou_i(rou_to_age_hwlp),
+    .pea_acc_reset_i(rou_to_age_pea_acc_reset),
+    .stream_valid_i(rou_to_age_stream_valid),
+    .is_age_active_i(age_is_age_active),
+    .const_iv_i(age_const_iv),
+    .n_banks_i(age_n_banks),
+    .start_banks_i(age_start_banks),
+    .block_size_i(age_block_size),
+    .is_acc_store_i(age_stream_lns),
+    .stream_lns_i(age_stream_lns),
+    .stream_addr_o(agu_addr_o),
+    .stream_bank_o(agu_bank_o),
+    .stream_bank_ls_o(agu_bank_ls_o),
+    .stream_pea_acc_reset_o(age_pea_acc_reset),
+    .stream_valid_o(agu_valid_o),
+    .stream_lns_o(agu_lns_o),
+    .stream_active_o(stream_active)
+);
 
-  assign mage_pea_acc_reset_o = |stream_pea_acc_reset_out_reg;
+  assign agu_pea_acc_reset_o = |age_pea_acc_reset;
 
 % if kernel_len != 1:
   // Configuration Memory Address (PC)
@@ -303,19 +233,20 @@ module mage
       .cfgmem_addr_i(cfgmem_addr),
 % endif
       .cfgmem_content_i(cfgmem_content_i),
-      //To hwlp_rou
-      .hwlp_sel_o(hwlp_sel),
-      .iv_constraint_sel_o(iv_contraints_sel),
-      .is_acc_store_rou_o(is_acc_store_rou),
-      .is_age_active_rou_o(is_age_active_rou),
-      //To age_unit
-      .const_iv_o(const_iv),
-      .is_age_active_o(is_age_active),
-      .n_banks_o(n_banks),
-      .start_banks_o(start_banks),
-      .block_size_o(block_size),
-      .stream_lns_o(stream_lns),
-      .is_acc_store_o(is_acc_store)
+      // To ROU
+      .rou_hwlp_sel_o(rou_hwlp_sel),
+      .rou_iv_constraint_sel_o(rou_iv_contraints_sel),
+      .rou_is_acc_store_rou_o(rou_is_acc_store),
+      .rou_is_age_active_rou_o(rou_is_age_active),
+      // To AGEs
+      .age_const_iv_o(age_const_iv),
+      .age_iv_strides_o(age_iv_strides),
+      .age_is_age_active_o(age_is_age_active),
+      .age_n_banks_o(age_n_banks),
+      .age_start_banks_o(age_start_banks),
+      .age_block_size_o(age_block_size),
+      .age_stream_lns_o(age_stream_lns),
+      .age_is_acc_store_o(age_stream_lns)
   );
 
-endmodule : mage
+endmodule : agu

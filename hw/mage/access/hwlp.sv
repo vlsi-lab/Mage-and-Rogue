@@ -8,7 +8,7 @@
 // Description: This module is a 4-nested loop Hardware Loop Unit with the II-calculation functionality.
 
 module hwlp
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
     input                                            clk_i,
     input                                            rst_n_i,

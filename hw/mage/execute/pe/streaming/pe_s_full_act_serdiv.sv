@@ -2,13 +2,12 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: s_pe.sv
+// File: pe_s_full_act_serdiv.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: This module is the main building block of the Processing Element Array (PEA) for Mage in streaming mode.
-//              It contains the functional unit (FU) and the input operand multiplexers.
+// Description: PE for streaming mode supporting int32 computation of classic gemm-related operations and activations with serial divider
 
-module s_pe
+module pe_s_full_act_serdiv
   import pea_pkg::*;
 (
     input  logic                                 clk_i,
@@ -50,6 +49,7 @@ module s_pe
   logic                 [       N_BITS:0]             delay_op_fu;
   logic                 [       N_BITS:0]             delay_op_out;
   logic                 [       N_BITS:0]             delay_op_out_d1;
+  logic                 [       N_BITS:0]             delay_op_out_d1_1;
   logic                 [       N_BITS:0]             delay_op_out_d2;
   logic                                               delay_op_valid;
   logic                                               delay_op_valid_out;
@@ -63,11 +63,13 @@ module s_pe
   logic                                               fu_valid;
   logic                                               fu_ready;
   logic                                               multi_op_instr;
+  logic                                               div_instr;
   // accumulation signals
   logic                                               valid;
   logic                                               acc_loopback;
   //fu signals
   logic                 [     N_BITS-1:0]             fu_out;
+  logic                 [     N_BITS-1:0]             rem_q_out;
   fu_instr_t                                          fu_instr;
   // RF
   logic                                               rf_en;
@@ -76,7 +78,6 @@ module s_pe
   logic                 [            1:0]             rf_val;
   logic                 [            4:0]             rf_cfg;
   logic                 [     N_BITS-1:0]             loopback_shacc;
-
 
   ////////////////////////////////////////////////////////////////
   //                     Clock-gating cell                      //
@@ -137,6 +138,7 @@ module s_pe
     end
   end
 
+
   ////////////////////////////////////////////////////////////////
   //                 Muxes inputs construction                  //
   ////////////////////////////////////////////////////////////////
@@ -166,8 +168,6 @@ module s_pe
   ////////////////////////////////////////////////////////////////
   //                       Operand Selection                    //
   ////////////////////////////////////////////////////////////////
-
-  // Inputs to FU and related valid signals
   assign op_a = (mux_sel_a == RF && rf_sel == 2'b00 && reg_pea_rf_de_o) ? reg_pea_rf_d_o : operands[mux_sel_a];
   assign op_b = (mux_sel_b == RF && rf_sel == 2'b00 && reg_pea_rf_de_o) ? reg_pea_rf_d_o : operands[mux_sel_b];
   assign op_a_valid = (mux_sel_a == SELF) ? 1'b1 : operands_valid[mux_sel_a];
@@ -242,7 +242,7 @@ module s_pe
   ////////////////////////////////////////////////////////////////
   //                         Functional Unit                    //
   ////////////////////////////////////////////////////////////////
-  fu_wrapper fu_wrapper_i (
+  fu_s_full_act_serdiv fu_wrapper_div_i (
       .clk_i(clk_cg),
       .rst_n_i(rst_n_i),
       .mage_done_i,
@@ -256,6 +256,7 @@ module s_pe
       .ops_valid_i(fu_ops_valid),
       .valid_o(fu_valid),
       .ready_o(fu_ready),
+      .rem_q_o(rem_q_out),
       .acc_loopback_o(acc_loopback),
       .instr_i(fu_instr),
       .res_o(fu_out)
@@ -265,51 +266,37 @@ module s_pe
   //                    Delay Operand Selection                 //
   ////////////////////////////////////////////////////////////////
 
-  /*
-    Selection of delay-operand to be fed to FU:
-      -> it can be chosen among four input delay-operands
-        -> D_UP
-        -> D_LEFT
-        -> D_RIGHT
-        -> D_DOWN
-
-      -> The chosen delay-operand is fed to FU
-  */
+  assign div_instr = (fu_instr == DIV || fu_instr == REM || fu_instr == ABSDIV || fu_instr == ABSREM || fu_instr == CADDDIV);
 
   // delayed operand selection, it is one among the possible operands of the PE FU 
-  assign delay_op_fu    = neigh_delay_op_i[delay_pe_mux_sel];
+  assign delay_op_fu = neigh_delay_op_i[delay_pe_mux_sel];
   // delayed operand valid selection
   assign delay_op_valid = neigh_delay_op_valid_i[delay_pe_mux_sel];
-
-
-  /* Output delay data selection:
-    ->  delay_op_out = fu_out      if delay_pe_op_mux_sel == D_PE_RES
-    ->  delay_op_out = op_a        if delay_pe_op_mux_sel == D_PE_OP_A
-    ->  delay_op_out = op_b        if delay_pe_op_mux_sel == D_PE_OP_B
-    ->  delay_op_out = delay_op_fu else
-
-    -> The MSB of the delayed operand is always taken from the delay-operand sent to FU (This delays the sign of input delay operand)
+  /* output delay data selection
+    ->  delay_op_out = fu_out      if delay_pe_mux_sel == D_PE_RES
+    ->  delay_op_out = rem_q_out  if delay_pe_mux_sel == D_PE_RES and fu_instr == REM
+    ->  delay_op_out = op_a        if delay_pe_mux_sel == D_PE_OP_A
+    ->  delay_op_out = op_b        if delay_pe_mux_sel == D_PE_OP_B
+    ->  delay_op_out = delay_op_fu if delay_pe_mux_sel == D_PE_DELAY_OP
+    in the default case, delay_op_out is set fed with delay_op_fu,
+    but it can be decided to forward also the result of the PE FU or one of its operands.
+    In case of DIV and REM, the remainder of the division is forwarded.
   */
   always_comb begin
-    delay_op_out = (delay_pe_op_mux_sel == D_PE_RES) ?  {delay_op_fu[N_BITS], fu_out} : (
+    delay_op_out = (delay_pe_op_mux_sel == D_PE_RES) ? ((fu_instr == DIV || fu_instr == REM || fu_instr == ABSDIV || fu_instr == ABSREM) ? {delay_op_fu[N_BITS], rem_q_out} : {delay_op_fu[N_BITS], fu_out}) : (
                    (delay_pe_op_mux_sel == D_PE_OP_A) ? {delay_op_fu[N_BITS], op_a} : (
                    (delay_pe_op_mux_sel == D_PE_OP_B) ? {delay_op_fu[N_BITS], op_b} : delay_op_fu
                   ));
-    delay_op_valid_out = (delay_pe_op_mux_sel == D_PE_RES) ? fu_valid : (
-                         (delay_pe_op_mux_sel == D_PE_OP_A) ? op_a_valid : (
-                         (delay_pe_op_mux_sel == D_PE_OP_B) ? op_b_valid : delay_op_valid
-                         ));
+    delay_op_valid_out = (delay_pe_op_mux_sel == D_PE_RES || div_instr) ? fu_valid : (
+                   (delay_pe_op_mux_sel == D_PE_OP_A) ? op_a_valid : (
+                   (delay_pe_op_mux_sel == D_PE_OP_B) ? op_b_valid : delay_op_valid
+                  ));
   end
 
   // multi_op_instr is asserted when the instruction is a multi-operand one
-  assign multi_op_instr = fu_instr[4] == 1'b1;
+  assign multi_op_instr = (fu_instr == ABSDIV || fu_instr == ABSMIN || fu_instr[4] == 1'b1);
 
-  /*
-    Delay-operand register (also for related valid signal):
-      -> double register to delay operand by the right amount
-        -> 1 cycle for 1-cycle instructions
-        -> 2 cycle for 2-cycle instructions
-  */
+  // Delay Operand Reg
   always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
       delay_op_out_d1 <= '0;
@@ -324,6 +311,17 @@ module s_pe
 
   always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
+      delay_op_out_d1_1 <= '0;
+    end else begin
+      if (div_instr && delay_op_valid_out && pea_ready_i) begin
+        delay_op_out_d1_1 <= delay_op_out_d1;
+      end
+    end
+  end
+
+  // Delay Operand Valid Reg
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
+    if (!rst_n_i) begin
       delay_op_valid_out_d1 <= 1'b0;
       delay_op_valid_out_d2 <= 1'b0;
     end else begin
@@ -335,39 +333,32 @@ module s_pe
   end
 
   /* 
-    Delay Operand Output Mux:
-
-      -> if delay_pe_op_mux_sel is D_PE_RES:
-        -> in case of multi-operand (2-cycle) instructions:
-          -> delay_op_o is made up of the MSB of "_d2" operand (one of the input delay-operands) and the rest is taken from "_d1" operand
-              This because we want to forward the output of the FU directly and not an input
-        -> else:
-            ->the "_d1" signals are selected
-
-      
-      -> if delay_pe_op_mux_sel is NOT D_PE_RES:
-        -> in case of multi-operand (2-cycle) instructions:
-            ->the "_d2" signals are selected
-        -> else:
-            ->the "_d1" signals are selected
+  Delay Operand Output Mux
+    The output of the delay operand is selected based on the instruction
+    If the instruction is a multi-operand one, the output is selected from the second delay register
+    Otherwise, the output is selected from the first delay register
   */
   always_comb begin
-    if (delay_pe_op_mux_sel == D_PE_RES) begin
-      if (multi_op_instr) begin
+    if (!div_instr) begin
+      if (delay_pe_op_mux_sel == D_PE_RES && multi_op_instr) begin
         delay_op_o = {delay_op_out_d2[N_BITS], delay_op_out_d1[N_BITS-1:0]};
+        delay_op_valid_o = delay_op_valid_out_d1;
+      end else if (delay_pe_op_mux_sel == D_PE_RES && !multi_op_instr) begin
+        delay_op_o = delay_op_out_d1;
+        delay_op_valid_o = delay_op_valid_out_d1;
+      end else if (delay_pe_op_mux_sel != D_PE_RES && multi_op_instr) begin
+        delay_op_o = delay_op_out_d2;
+        delay_op_valid_o = delay_op_valid_out_d2;
+      end else if (delay_pe_op_mux_sel != D_PE_RES && !multi_op_instr) begin
+        delay_op_o = delay_op_out_d1;
         delay_op_valid_o = delay_op_valid_out_d1;
       end else begin
         delay_op_o = delay_op_out_d1;
         delay_op_valid_o = delay_op_valid_out_d1;
       end
     end else begin
-      if (multi_op_instr) begin
-        delay_op_o = delay_op_out_d2;
-        delay_op_valid_o = delay_op_valid_out_d2;
-      end else begin
-        delay_op_o = delay_op_out_d1;
-        delay_op_valid_o = delay_op_valid_out_d1;
-      end
+      delay_op_o = {delay_op_out_d1_1[N_BITS], delay_op_out_d1[N_BITS-1:0]};
+      delay_op_valid_o = delay_op_valid_out_d1;
     end
   end
 
@@ -379,8 +370,7 @@ module s_pe
     The output register of the PE is set to:
       -> 0 when the instruction is NOP
       -> result of the FU when the instruction is not NOP, the output of the FU is valid and the pea is ready
-      -> result of the FU when the instruction is ACC, SHACC or MAX, the operands are valid and the pea is ready
-        -> However, the output is not always valid, but we make it available in output to feed it back to FU
+      -> result of the FU when the instruction is ACC or MAX, the operands are valid and the pea is ready
       -> to itself otherwise, to preserve the current value
   */
   always_ff @(posedge clk_cg, negedge rst_n_i) begin
@@ -424,7 +414,7 @@ module s_pe
           valid <= valid_o;
         end
       end else begin
-        valid <= 1'b0;
+        valid <= '0;
       end
     end
   end

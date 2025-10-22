@@ -3,27 +3,26 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: fu_partitioned.sv
+// File: fu_dae_part_gemm.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description:  This module is a functional unit that can perform the following operations:
-//               - 8-bit, 16-bit, and 32-bit Addition
-//               - 8-bit, 16-bit, and 32-bit Multiplication
-//               - 8-bit, 16-bit, and 32-bit Subtraction
+// Description: FU for DAE mode supporting int32-16-8 (packed SIMD) computation of classic gemm-related operations
 
-module fu_partitioned
+module fu_dae_part_gemm
   import pea_pkg::*;
 (
-    input  logic             clk_i,
-    input  logic             rst_n_i,
-    input  logic      [31:0] a_i,
-    input  logic      [31:0] b_i,
-    input  logic      [ 1:0] vec_mode_i,
-    input  fu_instr_t        instr_i,
-    output logic      [31:0] res_o
+    input  logic                   clk_i,
+    input  logic                   rst_n_i,
+    input  logic      [N_BITS-1:0] a_i,
+    input  logic      [N_BITS-1:0] b_i,
+    input  logic      [       1:0] vec_mode_i,
+    input  fu_instr_t              instr_i,
+    output logic      [N_BITS-1:0] res_o
 );
 
-  // Multipliers Inputs
+  ////////////////////////////////
+  //  Part Multiplier Signals   //
+  ////////////////////////////////
   logic [7:0] mul_op_8_a;
   logic [7:0] mul_op_8_b;
   logic [15:0] mul_op_16_1_a;
@@ -32,8 +31,6 @@ module fu_partitioned
   logic [15:0] mul_op_16_2_b;
   logic [15:0] mul_op_16_3_a;
   logic [15:0] mul_op_16_3_b;
-
-  // Multipliers Outputs
   logic [7:0] mul_result_8;
   logic [31:0] mul_result_16_1;
   logic [15:0] mul_result_16_2;
@@ -42,7 +39,7 @@ module fu_partitioned
   logic [15:0] mul_result_16_2_d;
   logic [15:0] mul_result_16_3_d;
 
-  // Vector Modes
+  // Vector Mode
   logic vec_mode_8;
   logic vec_mode_16;
   logic no_vec_mode;
@@ -53,10 +50,9 @@ module fu_partitioned
     no_vec_mode = vec_mode_i == 2'b00;
   end
 
-  ////////////////////////////////////////////////////////////////
-  //               Partitioned Integer Multiplier               //
-  ////////////////////////////////////////////////////////////////
-
+  ////////////////////////////////
+  //      Part Multiplier       //
+  ////////////////////////////////
   always_comb begin
 
     // default case is mul32
@@ -70,8 +66,8 @@ module fu_partitioned
     mul_op_8_b = '0;
 
     if (instr_i == MUL) begin
-      // mul8
       if (vec_mode_8) begin
+        // mul8
         mul_op_8_a = a_i[7:0];
         mul_op_8_b = b_i[7:0];
         mul_op_16_1_a[7:0] = a_i[15:8];
@@ -80,8 +76,8 @@ module fu_partitioned
         mul_op_16_2_b[7:0] = b_i[23:16];
         mul_op_16_3_a[7:0] = a_i[31:24];
         mul_op_16_3_b[7:0] = b_i[31:24];
-        //mul16
       end else if (vec_mode_16) begin
+        //mul16
         mul_op_16_1_a = a_i[15:0];
         mul_op_16_1_b = b_i[15:0];
         mul_op_16_2_a = a_i[31:16];
@@ -93,7 +89,6 @@ module fu_partitioned
   end
 
   // Multipliers outputs
-
   always_comb begin
     mul_result_8 = mul_op_8_a * mul_op_8_b;
     mul_result_16_1 = mul_op_16_1_a * mul_op_16_1_b;
@@ -101,7 +96,7 @@ module fu_partitioned
     mul_result_16_3 = mul_op_16_3_a * mul_op_16_3_b;
   end
 
-  // 32-bit mul case
+  // delaying results for 32-bit multiplication
   always_ff @(posedge clk_i, negedge rst_n_i) begin
     if (!rst_n_i) begin
       mul_result_16_1_d <= '0;
@@ -121,11 +116,10 @@ module fu_partitioned
   end
 
 
-  ////////////////////////////////////////////////////////////////
-  // Partitioned Integer Adder/Subtractor (based on RI5CY ALU)  //
-  ////////////////////////////////////////////////////////////////
+  /////////////////////////////////
+  //Part Add/Sub (based on RI5CY)//
+  /////////////////////////////////
 
-  // Adder
   logic adder_op_b_negate;
   logic [15:0]
       adder_op_a_low,
@@ -144,12 +138,12 @@ module fu_partitioned
   assign adder_op_a_low = a_i[15:0];
   assign adder_op_a_high = a_i[31:16];
 
-  assign operand_b_neg_low = ~b_i[15:0];
-  assign operand_b_neg_high = ~b_i[31:16];
-
   // prepare operand b
   assign adder_op_b_low = adder_op_b_negate ? operand_b_neg_low : b_i[15:0];
   assign adder_op_b_high = adder_op_b_negate ? operand_b_neg_high : b_i[31:16];
+
+  assign operand_b_neg_low = ~b_i[15:0];
+  assign operand_b_neg_high = ~b_i[31:16];
 
   // prepare carry
   always_comb begin
@@ -218,9 +212,9 @@ module fu_partitioned
     adder_result_expanded_low[8:1]
   };
 
-  ////////////////////////////////////////////////////////////////
-  //                  Partitioned Shifter                       //
-  ////////////////////////////////////////////////////////////////
+  ////////////////////////////////
+  //        Part Shifter        //
+  ////////////////////////////////
 
   logic        shift_left;  // should we shift left
   logic        shift_arithmetic;
@@ -330,29 +324,12 @@ module fu_partitioned
 
   assign shift_result = shift_left ? shift_left_result : shift_right_result;
 
-  ////////////////////////////////////////////////////////////////
-  //                        Comparator                          //
-  ////////////////////////////////////////////////////////////////
-
-  logic comparator_res;
-  logic [31:0] comp_inst_res;
-  assign comparator_res = ($signed(a_i) > $signed(b_i)) ? 1'b1 : 1'b0;
+  ////////////////////////////////
+  //     Output Assignment      //
+  ////////////////////////////////
   always_comb begin
     case (instr_i)
-      MAX: comp_inst_res = comparator_res ? a_i : b_i;
-      MIN: comp_inst_res = comparator_res ? b_i : a_i;
-      ABS: comp_inst_res = a_i[31] ? ~a_i + 1 : a_i;
-      SGNMUL: comp_inst_res = a_i[31] ? ~b_i + 1 : b_i;
-      default: comp_inst_res = 0;
-    endcase
-  end
-
-  ////////////////////////////////////////////////////////////////
-  //                  Result Selection Stage                    //
-  ////////////////////////////////////////////////////////////////
-
-  always_comb begin
-    case (instr_i)
+      NOP: res_o = '0;
       MUL: begin
         if (vec_mode_8) begin
           res_o = {mul_result_16_3[7:0], mul_result_16_2[7:0], mul_result_16_1[7:0], mul_result_8};
@@ -363,35 +340,18 @@ module fu_partitioned
         end
       end
 
-      ADD: begin
-        res_o = adder_result;
-      end
-
-      SUB: begin
-        res_o = adder_result;
-      end
-
-      LSH: begin
-        res_o = shift_result;
-      end
-
-      ARSH: begin
-        res_o = shift_result;
-      end
-
-      LRSH: begin
-        res_o = shift_result;
-      end
-
-      MAX: res_o = comp_inst_res;
-
-      MIN: res_o = comp_inst_res;
-
-      NOP: res_o = '0;
-
-      ABS: res_o = comp_inst_res;
-
-      SGNMUL: res_o = comp_inst_res;
+      ADD: res_o = adder_result;
+      SUB: res_o = adder_result;
+      LSH: res_o = shift_result;
+      ARSH: res_o = shift_result;
+      LRSH: res_o = shift_result;
+      ABS: res_o = a_signed[N_BITS-1] ? adder_result[N_BITS:1] : a_signed;
+      MAX:
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
+                                                  ((adder_result[N_BITS-1] == a_signed[N_BITS-1]) ? b_signed : a_signed);
+      MIN:
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_signed[N_BITS-1]) ? a_signed : b_signed) :
+                                                  ((adder_result[N_BITS-1] == a_signed[N_BITS-1]) ? a_signed : b_signed);
 
       default: res_o = 0;
     endcase

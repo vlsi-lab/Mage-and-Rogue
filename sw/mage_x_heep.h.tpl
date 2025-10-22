@@ -12,7 +12,7 @@ extern "C"
 #define EXT_XBAR_NMASTER 4
 #define EXT_XBAR_NSLAVE 1
 
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
 #define MAGE_START_ADDRESS (EXT_SLAVE_START_ADDRESS + 0x000000)
 #define MAGE_SIZE 0x100000
 #define MAGE_END_ADDRESS (MAGE_START_ADDRESS + MAGE_SIZE)
@@ -29,7 +29,7 @@ extern "C"
 // Processing Elements rf
 #define MAGE_PEA_RF_START_ADDR (MAGE_PERIPH_START_ADDRESS + MAGE_PEA_RF_0_REG_OFFSET)
 
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
 ////////////////////////////////////////////////////////////////
 //                                                            //
 //                          DAE Mage                          //
@@ -59,7 +59,7 @@ extern "C"
 #define START_MAGE_BANK_7 MAGE_START_ADDRESS + 0x7000
 
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
 ////////////////////////////////////////////////////////////////
 //                                                            //
 //                       Streaming Mage                       //

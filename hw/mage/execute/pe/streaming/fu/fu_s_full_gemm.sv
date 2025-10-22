@@ -2,12 +2,12 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: fu_wrapper.sv
+// File: fu_s_full_gemm.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: wrapper for functional unit
+// Description: FU for streaming mode supporting int32 computation of classic gemm-related operations
 
-module fu_wrapper
+module fu_s_full_gemm
   import pea_pkg::*;
 (
     input  logic                   clk_i,

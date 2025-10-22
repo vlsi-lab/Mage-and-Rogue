@@ -128,12 +128,19 @@ def main():
 
 
     kwargs = {
-        "enable_decoupling"                : cfg['enable_decoupling'],
-        "enable_streaming_interface"       : cfg['enable_streaming_interface'],
+        "dae_cgra"                         : cfg['dae_cgra'],
+        "streaming_cgra"                   : cfg['streaming_cgra'],
+        
+        "format_full"                      : cfg['format_full'],
+        "format_part"                      : cfg['format_part'],
+        
+        "gemm_computation"                 : cfg['gemm_computation'],
+        "activation_computation"           : cfg['activation_computation'],
         
         "n_pea_rows"                       : cfg['common_params']['n_pea_rows'],
         "n_pea_cols"                       : cfg['common_params']['n_pea_cols'],
         "n_neigh_pe"                       : cfg['common_params']['n_neigh_pe'],
+        "pattern_neigh_pe"                 : cfg['common_params']['pattern_neigh_pe'],
 
         "kernel_len"                       : cfg['dae_params']['kernel_len'],
         "n_pe_in_mem"                      : cfg['dae_params']['n_pe_in_mem'],

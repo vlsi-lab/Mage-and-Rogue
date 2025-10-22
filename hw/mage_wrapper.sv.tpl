@@ -8,11 +8,11 @@
 // Description: Top entity for Mage ecnompassing the SpM, memory decoder and the CGRA
 
 module mage_wrapper
-%if enable_decoupling == 1:
-  import mage_pkg::*;
+%if dae_cgra == 1:
+  import agu_pkg::*;
   import xbar_pkg::*;
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
   import fifo_pkg::*;
   import stream_intf_pkg::*;
 %endif
@@ -22,13 +22,13 @@ module mage_wrapper
 (
     input  logic      clk_i,
     input  logic      rst_n_i,
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
     // HW FIFO interface
     input fifo_req_t [N_DMA_CH-1:0] fifo_req_i,
     output fifo_resp_t [N_DMA_CH-1:0] fifo_resp_o,
     output logic [N_DMA_CH-1:0] mage_done_o,
 %endif
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
     // AHB Slave
     input  obi_req_t  slave_req_i,
     output obi_resp_t slave_resp_o,
@@ -39,20 +39,20 @@ module mage_wrapper
     input  reg_req_t  reg_req_i,
     output reg_rsp_t  reg_rsp_o
 );
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
   //mage fsm state
   state_t                                                  state;
   //block size for dmem decoder
   logic   [                    3:0]                        reg_block_size;
   ////////////////////////////////////////////////////////////////
-  //                Mage signals to Data Memory                 //
+  //                agu signals to Data Memory                 //
   ////////////////////////////////////////////////////////////////
-  logic   [            N_BANKS-1:0]                        mage_dmem_req;
-  logic   [            N_BANKS-1:0]                        mage_dmem_we;
-  logic   [            N_BANKS-1:0]                        mage_dmem_valid;
-  logic   [            N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] mage_dmem_addr;
-  logic   [            N_BANKS-1:0][           N_BITS-1:0] mage_dmem_wdata;
-  logic   [            N_BANKS-1:0][           N_BITS-1:0] mage_dmem_rdata;
+  logic   [            N_BANKS-1:0]                        agu_dmem_req;
+  logic   [            N_BANKS-1:0]                        agu_dmem_we;
+  logic   [            N_BANKS-1:0]                        agu_dmem_valid;
+  logic   [            N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] agu_dmem_addr;
+  logic   [            N_BANKS-1:0][           N_BITS-1:0] agu_dmem_wdata;
+  logic   [            N_BANKS-1:0][           N_BITS-1:0] agu_dmem_rdata;
   ////////////////////////////////////////////////////////////////
   //               Decoded signals to Data Memory               //
   ////////////////////////////////////////////////////////////////
@@ -78,19 +78,19 @@ module mage_wrapper
   mage_top mage_top_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
       .fifo_req_i(fifo_req_i),
       .fifo_resp_o(fifo_resp_o),
       .mage_done_o(mage_done_o),
 %endif
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
       .state_o(state),
-      .dmem_req_o(mage_dmem_req),
-      .dmem_we_o(mage_dmem_we),
-      .dmem_valid_o(mage_dmem_valid),
-      .dmem_addr_o(mage_dmem_addr),
-      .dmem_wdata_o(mage_dmem_wdata),
-      .dmem_rdata_i(mage_dmem_rdata),
+      .dmem_req_o(agu_dmem_req),
+      .dmem_we_o(agu_dmem_we),
+      .dmem_valid_o(agu_dmem_valid),
+      .dmem_addr_o(agu_dmem_addr),
+      .dmem_wdata_o(agu_dmem_wdata),
+      .dmem_rdata_i(agu_dmem_rdata),
       .reg_block_size_o(reg_block_size),
       .mage_intr_o(mage_intr_o),
 %endif
@@ -98,7 +98,7 @@ module mage_wrapper
       .reg_rsp_o(reg_rsp_o)
   );
 
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
   ////////////////////////////////////////////////////////////////
   //                        Internal SpM                        //
   ////////////////////////////////////////////////////////////////
@@ -122,11 +122,11 @@ module mage_wrapper
       .rst_n_i,
       .state_i(state),
       .reg_block_size_i(reg_block_size),
-      .mage_dmem_req_i(mage_dmem_req),
-      .mage_dmem_we_i(mage_dmem_we),
-      .mage_dmem_valid_i(mage_dmem_valid),
-      .mage_dmem_addr_i(mage_dmem_addr),
-      .mage_dmem_wdata_i(mage_dmem_wdata),
+      .agu_dmem_req_i(agu_dmem_req),
+      .agu_dmem_we_i(agu_dmem_we),
+      .agu_dmem_valid_i(agu_dmem_valid),
+      .agu_dmem_addr_i(agu_dmem_addr),
+      .agu_dmem_wdata_i(agu_dmem_wdata),
       .ext_dmem_req_i(ext_dmem_req),
       .ext_dmem_we_i(ext_dmem_we),
       .ext_dmem_addr_i(ext_dmem_addr),
@@ -135,7 +135,7 @@ module mage_wrapper
       .dmem_we_o(dmem_we),
       .dmem_addr_o(dmem_addr),
       .dmem_wdata_o(dmem_wdata),
-      .mage_dmem_rdata_o(mage_dmem_rdata),
+      .agu_dmem_rdata_o(agu_dmem_rdata),
       .dmem_rdata_i(dmem_rdata),
       .ext_dmem_valid_o(ext_dmem_valid),
       .ext_dmem_gnt_o(),

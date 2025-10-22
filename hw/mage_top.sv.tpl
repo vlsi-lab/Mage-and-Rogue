@@ -5,14 +5,14 @@
 // File: mage_top.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: Top level entity of Mage
+// Description: Top level entity of CGRA
 
 module mage_top
-%if enable_decoupling == 1:
-  import mage_pkg::*;
+%if dae_cgra == 1:
+  import agu_pkg::*;
   import xbar_pkg::*;
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
   import fifo_pkg::*;
   import stream_intf_pkg::*;
 %endif
@@ -21,36 +21,43 @@ module mage_top
 (
     input  logic                                          clk_i,
     input  logic                                          rst_n_i,
-%if enable_streaming_interface == 1:
-    //HW FIFO Interface
+    /* Reg Interface */
+    input  reg_req_t                                      reg_req_i,
+    output reg_rsp_t                                      reg_rsp_o
+%if streaming_cgra == 1:
+    ////////////////////////////////////////////////////////////////
+    //                Streaming CGRA Configuration                //
+    ////////////////////////////////////////////////////////////////
     input fifo_req_t [N_DMA_CH-1:0] fifo_req_i,
     output fifo_resp_t [N_DMA_CH-1:0] fifo_resp_o,
     output logic [N_DMA_CH-1:0] mage_done_o,
-%elif enable_decoupling == 1:
+  %elif dae_cgra == 1:
+    ////////////////////////////////////////////////////////////////
+    //                   DAE CGRA Configuration                   //
+    ////////////////////////////////////////////////////////////////
     output state_t                                        state_o,
-    output logic [3:0]                                    reg_block_size_o,
-    //Data Memory Subsystem to Data Memory
+    /* Interface towards internal SpM */
     output logic     [N_BANKS-1:0]                        dmem_req_o,
     output logic     [N_BANKS-1:0]                        dmem_we_o,
     output logic     [N_BANKS-1:0]                        dmem_valid_o,
     output logic     [N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] dmem_addr_o,
     output logic     [N_BANKS-1:0][           N_BITS-1:0] dmem_wdata_o,
     input  logic     [N_BANKS-1:0][           N_BITS-1:0] dmem_rdata_i,
-    //Interrupts
+    /* Interrupt */
     output logic                                          mage_intr_o,
 %endif
-    //Reg Interface
-    input  reg_req_t                                      reg_req_i,
-    output reg_rsp_t                                      reg_rsp_o
 );
-%if enable_decoupling == 1:
+
+%if dae_cgra == 1:
   logic reg_start;
   ////////////////////////////////////////////////////////////////
-  //                 General Configuration Bits                 //
+  //                   General Configuration                    //
   ////////////////////////////////////////////////////////////////
   logic [NBIT_II-1:0] reg_II;
+  %if format_part == 1:
   logic [1:0] reg_acc_vec_mode;
-% if kernel_len != 1:
+  %endif
+  % if kernel_len != 1:
   logic reg_static_n_timemux_mage;
   logic reg_static_n_timemux_cgra_pea_out_regs;
   logic reg_static_n_timemux_cgra_xbar;
@@ -58,7 +65,9 @@ module mage_top
   ////////////////////////////////////////////////////////////////
   //                     AGU Configuration                      //
   ////////////////////////////////////////////////////////////////
+  %if kernel_len == 1:
   loop_pipeline_info_t reg_lp_info;
+  %endif
   loop_vars_t [N_LP-1:0] reg_loop_vars;
   logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_iv_contraints;
   logic [N_AGE_TOT-1:0][N_SUBSCRIPTS-1:0][N_IV_PER_SUBSCRIPT-1:0][NBIT_LP_IV-1:0] reg_age_strides;
@@ -89,7 +98,7 @@ module mage_top
   logic end_pke;
   state_t state;
   ////////////////////////////////////////////////////////////////
-  //            MAGE Processing Element Array (PEA)             //
+  //              Processing Element Array (PEA)                //
   ////////////////////////////////////////////////////////////////
   logic [N_OUT_PEA-1:0][N_BITS-1:0] pea_outputs;
   logic [N_IN_PEA-1:0][N_BITS-1:0] pea_inputs;
@@ -98,21 +107,21 @@ module mage_top
   ////////////////////////////////////////////////////////////////
   logic start_d;
   logic end_lp;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_ADDR-1:0] mage_addr;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][N_BANKS_PER_STREAM-1:0] mage_bank;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] mage_bank_ls;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_valid;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_valid_ls;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] mage_lns;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_ADDR-1:0] agu_addr;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][N_BANKS_PER_STREAM-1:0] agu_bank;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] agu_bank_ls;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid_ls;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_lns;
   logic acc_match;
   ////////////////////////////////////////////////////////////////
   //          Crossbar between AGU and Multi-Bank SpM           //
   ////////////////////////////////////////////////////////////////
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0][NBIT_ADDR-1:0] mage_dmem_addr;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] mage_dmem_bank;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] mage_dmem_we;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] mage_dmem_valid;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] mage_dmem_valid_d;
+  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0][NBIT_ADDR-1:0] agu_dmem_addr;
+  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_bank;
+  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_we;
+  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_valid;
+  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_valid_d;
   ////////////////////////////////////////////////////////////////
   //        Crossbar between Multi-Bank SpM and MAGE PEA        //
   ////////////////////////////////////////////////////////////////
@@ -125,7 +134,7 @@ module mage_top
   //input to xbar banks-pea
   logic [N_BANKS-1:0][N_BITS-1:0] banks_to_pea_xbar_in;
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
   ////////////////////////////////////////////////////////////////
   //                      Streaming Interface                   //
   ////////////////////////////////////////////////////////////////
@@ -162,7 +171,7 @@ module mage_top
   logic [N-1:0][M-1:0][KMEM_SIZE-1:0][32-1:0] reg_cfg_pea;
   logic [N-1:0][M-1:0][N_CFG_BITS_PE-1:0] cfg_pea;
   logic [N-1:0][M-1:0][31:0] reg_constant_op_pea;
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
   logic [N-1:0][M-1:0][31:0] reg_rf_in_pea;
   logic [N-1:0][M-1:0][31:0] reg_rf_d_pea;
   logic [N-1:0][M-1:0]       reg_rf_de_pea;
@@ -174,37 +183,34 @@ module mage_top
   peripheral_regs peripheral_regs_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
-      // reg interface
+      /* register interface */
       .reg_req_i(reg_req_i),
       .reg_rsp_o(reg_rsp_o),
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
       .state_i(state),
       .reg_start_o(reg_start),
       ////////////////////////////////////////////////////////////////
       //                 General Configuration Bits                 //
       ////////////////////////////////////////////////////////////////
-      .reg_block_size_o(reg_block_size_o),
       .reg_II_o(reg_II),
   % if kernel_len != 1:
       .reg_static_n_timemux_mage_o(reg_static_n_timemux_mage),
       .reg_static_n_timemux_cgra_pea_o(reg_static_n_timemux_cgra_pea),
       .reg_static_n_timemux_cgra_pea_out_regs_o(reg_static_n_timemux_cgra_pea_out_regs),
       .reg_static_n_timemux_cgra_xbar_o(reg_static_n_timemux_cgra_xbar),
-  % else:
-      .reg_static_n_timemux_mage_o(),
-      .reg_static_n_timemux_cgra_pea_o(),
-      .reg_static_n_timemux_cgra_pea_out_regs_o(),
-      .reg_static_n_timemux_cgra_xbar_o(),
   % endif
       ////////////////////////////////////////////////////////////////
       //                      AGU Configuration                     //
       ////////////////////////////////////////////////////////////////
+  % if kernel_len != 1:
       .reg_lp_info_o(reg_lp_info),
+  %endif
+  % if format_part != 1:
       .reg_acc_vec_mode_o(reg_acc_vec_mode),
+  %endif
       .reg_loop_vars_o(reg_loop_vars),
       .reg_iv_contraints_o(reg_iv_contraints),
-      .reg_age_strides_o(reg_age_strides),
-      .reg_mage_cfgmem_o(reg_mage_cfgmem),
+      .reg_agu_cfgmem_o(reg_mage_cfgmem),
       ////////////////////////////////////////////////////////////////
       //                  Crossbars Configuration                   //
       ////////////////////////////////////////////////////////////////
@@ -212,7 +218,7 @@ module mage_top
       .reg_cfg_l_stream_sel_o(reg_cfg_l_stream_sel),
       .reg_cfg_s_stream_sel_o(reg_cfg_s_stream_sel),
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
       .reg_cols_grouping_o(reg_cols_grouping),
       .reg_rf_value_o(reg_rf_val),
       .reg_dma_rnw_o(reg_dma_rnw),
@@ -237,7 +243,7 @@ module mage_top
       .reg_pea_constants_o(reg_constant_op_pea),
       .reg_cfg_pea_o(reg_cfg_pea)
   );
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
   cfg_regs_out_pea cfg_regs_out_pea_inst (
       .reg_cfg_sel_out_pea_i(reg_cfg_sel_out_pea),
   % if kernel_len != 1:
@@ -262,7 +268,7 @@ module mage_top
   fsm fsm_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
-      .start_i(reg_start),  //from CSR
+      .start_i(reg_start),
       .end_i(end_lp),
       .intr_o(mage_intr_o),
       .state_o(state)
@@ -271,7 +277,7 @@ module mage_top
 %endif
 
   ////////////////////////////////////////////////////////////////
-  //            MAGE Processing Element Array (PEA)             //
+  //              Processing Element Array (PEA)                //
   ////////////////////////////////////////////////////////////////
 % if kernel_len != 1:
   cfg_regs_pea cfg_regs_pea_inst (
@@ -289,7 +295,7 @@ module mage_top
   end
 % endif
 
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
   assign mage_done = &mage_done_o;
 %endif
 
@@ -297,7 +303,7 @@ module mage_top
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
       .ctrl_pea_i(cfg_pea),
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
       .mage_done_i(mage_done),
       .reg_pea_rf_de_o(reg_rf_de_pea),
       .reg_pea_rf_d_o(reg_rf_d_pea),
@@ -313,7 +319,7 @@ module mage_top
       .pea_ready_o(pea_ready),
       .stream_intf_ready_i(stream_intf_ready),
 %endif
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
       .sel_output_i(cfg_sel_pea_output),
       .start_d_i(start_d),
       .pea_data_i(pea_inputs),
@@ -323,34 +329,38 @@ module mage_top
       .reg_constant_op_i(reg_constant_op_pea)
   );
 
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
   ////////////////////////////////////////////////////////////////
   //                            AGU                             //
   ////////////////////////////////////////////////////////////////
-  mage mage_inst (
+  agu agu_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
+      /* Start-End */
       .start_i(reg_start),
+      .start_d_o(start_d),
+      .end_lp_o(end_lp),
+      /* Configuration */
 % if kernel_len != 1:
+      .reg_loop_vars_i(reg_loop_vars),
       .reg_static_no_timemux_i(reg_static_n_timemux_mage),
       .cfgmem_addr_d_o(cfg_addr),
 % endif
       .reg_iv_contraints_i(reg_iv_contraints),
-      .reg_acc_vec_mode_i(reg_acc_vec_mode),
       .reg_II_i(reg_II),
-      .reg_loop_vars_i(reg_loop_vars),
       .reg_lp_info_i(reg_lp_info),
-      .reg_age_strides_i(reg_age_strides),
       .cfgmem_content_i(reg_mage_cfgmem),
-      .start_d_o(start_d),
-      .end_lp_o(end_lp),
-      .mage_addr_o(mage_addr),
-      .mage_bank_o(mage_bank),
-      .mage_bank_ls_o(mage_bank_ls),
-      .mage_valid_o(mage_valid),
-      .mage_valid_ls_o(mage_valid_ls),
-      .mage_lns_o(mage_lns),
-      .mage_pea_acc_reset_o(acc_match)
+% if format_part != 1:
+      .reg_acc_vec_mode_i(reg_acc_vec_mode),
+% endif
+      /* Outputs */
+      .agu_addr_o(agu_addr),
+      .agu_bank_o(agu_bank),
+      .agu_bank_ls_o(agu_bank_ls),
+      .agu_valid_o(agu_valid),
+      .agu_valid_ls_o(agu_valid_ls),
+      .agu_lns_o(agu_lns),
+      .agu_pea_acc_reset_o(acc_match)
   );
 
 % if kernel_len != 1:
@@ -426,7 +436,7 @@ module mage_top
   genvar i;
   generate
     for (i = 0; i < N_PE_GROUP; i++) begin : gen_xbar_banks_pea_i
-      xbar_banks_pea_pipelined xbar_banks_pea_pipe_inst (
+      xbar_banks_pea xbar_banks_pea_i (
           .out_pea_i(out_pea_in_xbar[i]),
           .out_dmem_i(out_dmem_in_xbar[i]),
           .sel_dmem_pea_i(cfg_sel_dmem_pea[i]),
@@ -445,8 +455,8 @@ module mage_top
           load_store_stream load_store_stream_inst (
               .l_stream_sel_i(l_stream_sel[m][n]),
               .s_stream_sel_i(s_stream_sel[m][n]),
-              .age_bank_i(mage_bank_ls[m]),
-              .valid_i(mage_valid_ls[m]),
+              .age_bank_i(agu_bank_ls[m]),
+              .valid_i(agu_valid_ls[m]),
               .sel_load_stream_o(cfg_sel_dmem_pea[m][n]),
               .sel_store_stream_o(cfg_sel_pea_dmem[m][n])
           );
@@ -455,21 +465,21 @@ module mage_top
   endgenerate
 
   ////////////////////////////////////////////////////////////////
-  //          Crossbar between MAGE and Multi-Bank SpM          //
+  //          Crossbar between agu and Multi-Bank SpM          //
   ////////////////////////////////////////////////////////////////
   genvar j;
   generate
     for (j = 0; j < N_STREAMS; j++) begin : gen_stream_xbar
 
       xbar_age_to_banks xbar_age_to_banks_inst (
-          .age_addr_i(mage_addr[j]),
-          .age_valid_i(mage_valid[j]),
-          .age_we_i(mage_lns[j]),
-          .age_bank_i(mage_bank_ls[j]),
-          .age_dmem_addr_o(mage_dmem_addr[j]),
-          .age_dmem_bank_o(mage_dmem_bank[j]),
-          .age_dmem_we_o(mage_dmem_we[j]),
-          .age_dmem_valid_o(mage_dmem_valid[j])
+          .age_addr_i(agu_addr[j]),
+          .age_valid_i(agu_valid[j]),
+          .age_we_i(agu_lns[j]),
+          .age_bank_i(agu_bank_ls[j]),
+          .age_dmem_addr_o(agu_dmem_addr[j]),
+          .age_dmem_bank_o(agu_dmem_bank[j]),
+          .age_dmem_we_o(agu_dmem_we[j]),
+          .age_dmem_valid_o(agu_dmem_valid[j])
       );
 
     end
@@ -478,24 +488,24 @@ module mage_top
 
   always_ff @(posedge clk_i or negedge rst_n_i) begin
     if (~rst_n_i) begin
-      mage_dmem_valid_d <= '0;
+      agu_dmem_valid_d <= '0;
     end else begin
-      mage_dmem_valid_d <= mage_dmem_valid;
+      agu_dmem_valid_d <= agu_dmem_valid;
     end
   end
 
   always_comb begin
     for (int k = 0; k < N_STREAMS; k = k + 1) begin
       for (int l = 0; l < N_BANKS_PER_STREAM; l = l + 1) begin
-        dmem_addr_o[k*N_BANKS_PER_STREAM+l] = mage_dmem_addr[k][l];
-        dmem_req_o[k*N_BANKS_PER_STREAM+l] = mage_dmem_bank[k][l];
-        dmem_we_o[k*N_BANKS_PER_STREAM+l] = mage_dmem_we[k][l];
-        dmem_valid_o[k*N_BANKS_PER_STREAM+l] = mage_dmem_valid_d[k][l];
+        dmem_addr_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_addr[k][l];
+        dmem_req_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_bank[k][l];
+        dmem_we_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_we[k][l];
+        dmem_valid_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_valid_d[k][l];
       end
     end
   end
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
 
   ////////////////////////////////////////////////////////////////
   //                      Streaming Interface                   //

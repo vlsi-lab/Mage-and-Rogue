@@ -9,7 +9,7 @@
 
 module data_memory
   import pea_pkg::*;
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
     input logic clk_i,
     input logic rst_n_i,

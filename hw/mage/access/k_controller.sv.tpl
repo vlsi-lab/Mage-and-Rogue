@@ -5,10 +5,10 @@
 // File: k_controller.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: This module implements the PKE-based controller of the Mage-Cgra. However, P and E are not used.
+// Description: This module implements the PKE-based controller of the cgra. However, P and E are not used.
 //              Only K and the number of repetitions of the kernel are used. It also handles the delivery of the start signal
 //              to Pea. Moreover, the count signal of the counter is used to the address to select the current configuration both in
-//              Mage and Pea.
+//              Agu and Pea.
 
 module k_controller
   import pea_pkg::*;

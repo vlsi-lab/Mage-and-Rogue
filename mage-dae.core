@@ -9,7 +9,7 @@ filesets:
     files:  
     - hw/mage/packages/obi_pkg.sv
     - hw/mage/packages/reg_pkg.sv
-    - hw/mage/packages/mage_pkg.sv
+    - hw/mage/packages/agu_pkg.sv
     - hw/mage/packages/pea_pkg.sv
     - hw/mage/packages/xbar_pkg.sv  
     file_type: systemVerilogSource
@@ -32,11 +32,16 @@ filesets:
     - hw/mage/xbars/banks_pea/xbar_banks_pea_bb.sv
     - hw/mage/xbars/banks_pea/xbar_banks_pea.sv
     - hw/mage/xbars/banks_pea/xbar_banks_pea_pipelined.sv
-    - hw/mage/execute/pe/fu/fu_partitioned.sv
-    - hw/mage/execute/pe/dae_acc_pe.sv
-    - hw/mage/execute/pe/dae_pe.sv
+    - hw/mage/execute/pe/dae/fu/fu_dae_full_gemm.sv
+    - hw/mage/execute/pe/dae/pe_dae_full_gemm.sv
+    - hw/mage/execute/pe/dae/fu/fu_dae_part_gemm.sv
+    - hw/mage/execute/pe/dae/pe_dae_part_gemm.sv
+    - hw/mage/execute/pe/dae/fu/fu_dae_part_gemm_acc.sv
+    - hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv
+    - hw/mage/execute/pe/dae/fu/fu_dae_full_act.sv
+    - hw/mage/execute/pe/dae/pe_dae_full_act.sv
     - hw/mage/execute/pea.sv
-    - hw/mage/mage_top.sv
+    - hw/mage_top.sv
     file_type: systemVerilogSource
 
   files_access:
@@ -48,7 +53,7 @@ filesets:
     - hw/mage/access/age.sv
     - hw/mage/access/age_unit.sv
     - hw/mage/access/cfg_dispatcher.sv
-    - hw/mage/access/mage.sv
+    - hw/mage/access/agu.sv
     file_type: systemVerilogSource
 
   files_memory:
@@ -62,7 +67,7 @@ filesets:
   files_wrapper:
     files:  
     - hw/mage/dmem_decoder.sv
-    - hw/mage/mage_wrapper.sv
+    - hw/mage_wrapper.sv
     file_type: systemVerilogSource
 
   files_verilator_waiver:

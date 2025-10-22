@@ -4,7 +4,7 @@
     { protocol: "reg_iface", direction: "device" }
   ],
   registers: [
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
     { name:     "STATUS",
       desc:     "MAGE-CGRA status",
       swaccess: "rw",
@@ -47,14 +47,12 @@
           name: "S_N_T_mage_XBAR",
           desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
         },
+%if format_part == 1:
         { bits: "11:8", 
           name: "ACC_VEC_MODE",
           desc: "Vector mode for accumulation" 
-        },
-        { bits: "15:12", 
-          name: "BLOCKSIZE",
-          desc: "Blocksize for dmem decoder" 
         }
+%endif
       ]
     },
     { name:     "ILB_HWL",
@@ -209,7 +207,7 @@
     },
     %endfor
 %endfor
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
 <%import math as m%>
     { multireg:
         { name: "SEL_OUT_PEA",
@@ -300,7 +298,7 @@
         ],
         }
     },
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
     { multireg:
         { name: "AGE_IV_CONSTRAINTS",
         desc: "Configuration for AGE IV constraints",
@@ -329,7 +327,7 @@
         }
     },
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
   %for i in range(n_dma_ch):
     { name: "TRANS_SIZE_DMA_CH_${i}",
       desc: "Transaction size for DMA channel ${i}. It indicates the number of elements to be read or written by that dma channel. Once the associated down-counter reaches zero, the DMA channel is will receive a done signal",

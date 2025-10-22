@@ -11,7 +11,7 @@
 
 
 module accumulation_ctrl
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
     input  logic                                                   clk_i,
     input  logic                                                   rst_n_i,

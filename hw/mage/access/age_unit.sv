@@ -10,14 +10,14 @@
 
 
 module age_unit
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
     input logic clk_i,
     input logic rst_n_i,
     //input logic end_accumulation_i,
     input logic start_i,
     //CSR containing all column sizes neeeded for calculating flat address
-    input logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] reg_age_strides_i,
+    input logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] age_strides_i,
     //from HWLP_ROU
     //oredered ivs for each stream address/bank generation
     input logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] rou_i,
@@ -30,7 +30,7 @@ module age_unit
     input logic [N_AGE_TOT-1:0] end_lp_i,
     //FA_GEN
     //constant ivs for each subscript of each stream
-    input logic [N_AGE_TOT-1:0][NBIT_IV_CONST-1:0] const_iv_i,
+    input logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0] const_iv_i,
     //BA_GEN
     //number of banks for each stream
     input logic [N_AGE_TOT-1:0][NBIT_N_BANKS-1:0] n_banks_i,
@@ -67,7 +67,7 @@ module age_unit
             .iv_i(rou_i[i*N_AGE_PER_STREAM+j]),
             .pea_acc_reset_i(pea_acc_reset_i[i*N_AGE_PER_STREAM+j]),
             .iv_const_i(const_iv_i[i*N_AGE_PER_STREAM+j]),
-            .reg_strides_i(reg_age_strides_i[i*N_AGE_PER_STREAM+j]),
+            .age_strides_i(age_strides_i[i*N_AGE_PER_STREAM+j]),
             .n_banks_i(n_banks_i[i*N_AGE_PER_STREAM+j]),
             .start_bank_i(start_banks_i[i*N_AGE_PER_STREAM+j]),
             .block_size_i(block_size_i[i*N_AGE_PER_STREAM+j]),
