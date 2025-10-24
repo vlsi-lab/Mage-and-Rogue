@@ -116,8 +116,8 @@ package agu_pkg;
     /* full data */
     //constant of the subscript
     logic [NBIT_LP_IV-1:0] iv_const;
-    //iv stride
-    logic [NBIT_LP_IV-1:0] iv_stride;
+    //iv constraint value
+    logic [NBIT_LP_IV-1:0] iv_constraint;
 
     /* valid bit */
     logic valid;
@@ -157,8 +157,8 @@ package agu_pkg;
   localparam unsigned IV_CONST_MSB = IV_CONST_LSB + NBIT_LP_IV - 1;
   localparam unsigned IV_CONST_LSB = IS_ACC_STORE_MSB + 1; 
 
-  localparam unsigned IV_STRIDE_MSB = IV_STRIDE_LSB + NBIT_LP_IV - 1;
-  localparam unsigned IV_STRIDE_LSB = IV_CONST_MSB + 1; 
+  localparam unsigned IV_CONSTRAINT_MSB = IV_CONSTRAINT_LSB + NBIT_LP_IV - 1;
+  localparam unsigned IV_CONSTRAINT_LSB = IV_CONST_MSB + 1; 
 
   localparam unsigned VALID_MSB = VALID_LSB + 1 - 1;
   localparam unsigned VALID_LSB = IV_CONSTRAINT_MSB + 1;    

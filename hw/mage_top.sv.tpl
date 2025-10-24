@@ -69,8 +69,7 @@ module mage_top
   loop_pipeline_info_t reg_lp_info;
   %endif
   loop_vars_t [N_LP-1:0] reg_loop_vars;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_iv_contraints;
-  logic [N_AGE_TOT-1:0][N_SUBSCRIPTS-1:0][N_IV_PER_SUBSCRIPT-1:0][NBIT_LP_IV-1:0] reg_age_strides;
+  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_age_strides;
   logic [ACC_CFGMEM_SIZE-1:0][N_AGE_TOT-1:0][NBIT_CFG_STREAM_WORD-1:0] reg_mage_cfgmem;
   ////////////////////////////////////////////////////////////////
   //                  Crossbars Configuration                   //
@@ -209,7 +208,7 @@ module mage_top
       .reg_acc_vec_mode_o(reg_acc_vec_mode),
   %endif
       .reg_loop_vars_o(reg_loop_vars),
-      .reg_iv_contraints_o(reg_iv_contraints),
+      .reg_age_strides_o(reg_age_strides),
       .reg_agu_cfgmem_o(reg_mage_cfgmem),
       ////////////////////////////////////////////////////////////////
       //                  Crossbars Configuration                   //
@@ -346,7 +345,7 @@ module mage_top
       .reg_static_no_timemux_i(reg_static_n_timemux_mage),
       .cfgmem_addr_d_o(cfg_addr),
 % endif
-      .reg_iv_contraints_i(reg_iv_contraints),
+      .reg_age_strides_i(reg_age_strides),
       .reg_II_i(reg_II),
       .reg_lp_info_i(reg_lp_info),
       .cfgmem_content_i(reg_mage_cfgmem),

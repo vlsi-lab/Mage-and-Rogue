@@ -32,23 +32,27 @@
           desc: "Initiation interval" 
         },
         { bits: "4:4", 
-          name: "S_N_T_MAGE",
+          name: "S_N_T_AGU",
           desc: "Static/Time-Multiplexed configuration for MAGE" 
         },
         { bits: "5:5", 
-          name: "S_N_T_mage_PEA",
+          name: "S_N_T_PEA",
           desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
         },
         { bits: "6:6", 
-          name: "S_N_T_mage_PEA_OUT_REGS",
+          name: "S_N_T_PEA_SEL_OUT_REGS",
           desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
         },
         { bits: "7:7", 
-          name: "S_N_T_mage_XBAR",
+          name: "S_N_T_LOAD_STREAM",
+          desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
+        },
+        { bits: "8:8", 
+          name: "S_N_T_STREAM_STREAM",
           desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
         },
 %if format_part == 1:
-        { bits: "11:8", 
+        { bits: "12:9", 
           name: "ACC_VEC_MODE",
           desc: "Vector mode for accumulation" 
         }
@@ -300,10 +304,10 @@
     },
 %if dae_cgra == 1:
     { multireg:
-        { name: "AGE_IV_CONSTRAINTS",
+        { name: "AGE_STRIDES",
         desc: "Configuration for AGE IV constraints",
         count : "${int(n_age_tot/4)}",
-        cname: "AGE_IV_CONSTRAINTS",
+        cname: "AGE_STRIDES",
         swaccess: "rw",
         hwaccess: "hro",
         fields: [

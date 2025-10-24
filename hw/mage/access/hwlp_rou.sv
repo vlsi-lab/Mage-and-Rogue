@@ -20,7 +20,7 @@ module hwlp_rou
     //each bit is set to 1 when the related loop variable has to restart from initial value
     input logic [HWLP_RF_SIZE-1:0][N_LP-1:0] hwlp_end_condition_i,
     //IVs constraints for each stream
-    input logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_iv_contraints_i,
+    input logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] iv_constraints_i,
     //selection signals for ivs constraints
     input logic [N_AGE_TOT-1:0][LOG2_N_LP-1+1:0] iv_constraints_sel_i,
     //input from hwlp_rf
@@ -112,7 +112,7 @@ module hwlp_rou
           condition_mask[i][j] = (1 << (iv_constraints_sel_i[i*N_AGE_PER_STREAM+j])) - 1;
           // Constrained IVs for the stream:
           // If the iv constraint selector is not 4, it indicates the iv to be constrained (at the value kept in reg) for the respective stream
-          is_constraint_iv_valid[i*N_AGE_PER_STREAM+j] = (stream_hwlp[i*N_AGE_PER_STREAM+j][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == reg_iv_contraints_i[i][j]) &&
+          is_constraint_iv_valid[i*N_AGE_PER_STREAM+j] = (stream_hwlp[i*N_AGE_PER_STREAM+j][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == iv_constraints_i[i][j]) &&
                                                          ((zero_condition[i][j] & condition_mask[i][j]) == '0);
           // If the stream handles the store of an accumulation, the PEA has to be informed on when the accumulation ends too
           // This is done by checking if the constrained IV is equal to its constraint but considering an entry of the RF active before the one of the acc store stream

@@ -20,9 +20,10 @@ module cfg_dispatcher
     output logic [N_AGE_TOT-1:0]                        rou_is_age_active_rou_o,
     output logic [N_AGE_TOT-1:0][LOG2_HWLP_RF_SIZE-1:0] rou_hwlp_sel_o,
     output logic [N_AGE_TOT-1:0][LOG2_N_LP-1+1:0]       rou_iv_constraint_sel_o,
+    output logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0]        rou_iv_constraint_o,
     output logic [N_AGE_TOT-1:0]                        rou_is_acc_store_rou_o,
     // AGE
-    output logic [N_AGE_TOT-1:0][NBIT_LP_IV-1+1:0]    age_iv_strides_o,
+    output logic [N_AGE_TOT-1:0][NBIT_LP_IV-1+1:0]    age_iv_constrain_o,
     output logic [N_AGE_TOT-1:0]                      age_is_age_active_o,
     output logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0]      age_const_iv_o,
     output logic [N_AGE_TOT-1:0][NBIT_N_BANKS-1:0]    age_n_banks_o,
@@ -57,7 +58,7 @@ module cfg_dispatcher
       stream_inst[i].is_acc_store       = cfg_word[i][IS_ACC_STORE_MSB:IS_ACC_STORE_LSB];
       
       stream_inst[i].iv_const           = cfg_word[i][IV_CONST_MSB:IV_CONST_LSB];
-      stream_inst[i].iv_stride          = cfg_word[i][IV_STRIDE_MSB:IV_STRIDE_LSB];
+      stream_inst[i].iv_constraint      = cfg_word[i][IV_CONSTRAINT_MSB:IV_CONSTRAINT_LSB];
 
       stream_inst[i].valid              = cfg_word[i][VALID_MSB:VALID_LSB];
 
@@ -69,6 +70,7 @@ module cfg_dispatcher
     for (int i = 0; i < N_AGE_TOT; i = i + 1) begin
       rou_hwlp_sel_o[i] = stream_inst[i].hwlp_rf_sel;
       rou_iv_constraint_sel_o[i] = stream_inst[i].iv_constraint_sel;
+      rou_iv_constraint_o[i] = stream_inst[i].iv_constraint;
       rou_is_acc_store_rou_o[i] = stream_inst[i].is_acc_store;
       rou_is_age_active_rou_o[i] = stream_inst[i].valid;
     end
@@ -78,13 +80,12 @@ module cfg_dispatcher
   // Outputs to AGU exiting the dispatcher without going through registers
   always_comb begin
     for (int i = 0; i < N_AGE_TOT; i = i + 1) begin
-      is_acc_store_o[i]  = stream_inst[i].is_acc_store;
+      is_acc_store_o[i]      = stream_inst[i].is_acc_store;
       age_n_banks_o[i]       = stream_inst[i].n_banks;
       age_start_banks_o[i]   = stream_inst[i].bank_start;
       age_block_size_o[i]    = stream_inst[i].block_size;
       age_stream_lns_o[i]    = stream_inst[i].lns; 
       age_const_iv_o[i]      = stream_inst[i].iv_const;
-      age_strides_o[i]       = stream_inst[i].iv_stride;
       age_is_age_active_o[i] = stream_inst[i].valid;
     end
   end

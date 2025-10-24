@@ -30,7 +30,7 @@ module agu
     ////////////////////////////////////////////////////////////////
     //                Re-Order Unit Configuration                 //
     ////////////////////////////////////////////////////////////////
-    input logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_iv_contraints_i,
+    input logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_age_strides_i,
     ////////////////////////////////////////////////////////////////
     //                   Streams Configuration                    //
     ////////////////////////////////////////////////////////////////
@@ -69,13 +69,12 @@ module agu
   ////////////////////////////////////////////////////////////////
   logic [N_AGE_TOT-1:0] rou_is_age_active;
   logic [N_AGE_TOT-1:0][LOG2_HWLP_RF_SIZE-1:0] rou_hwlp_sel;
-  logic [N_AGE_TOT-1:0][LOG2_N_LP-1+1:0] rou_iv_contraints_sel;
+  logic [N_AGE_TOT-1:0][LOG2_N_LP-1+1:0] rou_iv_constraints_sel;
   logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0] rou_iv_constraints;
   logic [N_AGE_TOT-1:0] rou_is_acc_store;
 
   logic [N_AGE_TOT-1:0] age_is_age_active;
   logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0] age_const_iv;
-  logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] age_strides;
   logic [N_AGE_TOT-1:0][NBIT_N_BANKS-1:0] age_n_banks;
   logic [N_AGE_TOT-1:0][NBIT_START_BANK-1:0] age_start_banks;
   logic [N_AGE_TOT-1:0][NBIT_BLOCK_SIZE-1:0] age_block_size;
@@ -175,8 +174,8 @@ module agu
       .end_lp_i(hwlp_rf_end_lp),
       .hwlp_end_condition_i(hwlp_rf_end_condition),
       .is_age_active_i(rou_is_age_active),
-      .reg_iv_contraints_i(reg_iv_contraints_i),
-      .iv_constraints_sel_i(rou_iv_contraints_sel),
+      .iv_constraints_i(rou_iv_constraints),
+      .iv_constraints_sel_i(rou_iv_constraints_sel),
       .hwlp_valid_i(hwlp_rf_valid),
       .is_acc_store_rou_i(rou_is_acc_store),
       .reg_acc_vec_mode_i(reg_acc_vec_mode_i),
@@ -192,7 +191,7 @@ module agu
     .rst_n_i(rst_n_i),
     .start_i(start_i),
     .end_lp_i(hwlp_rou_end_lp),
-    .age_strides_i(age_strides),
+    .age_strides_i(reg_age_strides_i),
     .rou_i(rou_to_age_hwlp),
     .pea_acc_reset_i(rou_to_age_pea_acc_reset),
     .stream_valid_i(rou_to_age_stream_valid),
@@ -235,12 +234,12 @@ module agu
       .cfgmem_content_i(cfgmem_content_i),
       // To ROU
       .rou_hwlp_sel_o(rou_hwlp_sel),
-      .rou_iv_constraint_sel_o(rou_iv_contraints_sel),
+      .rou_iv_constraint_sel_o(rou_iv_constraints_sel),
+      .rou_iv_constraint_o(rou_iv_constraints),
       .rou_is_acc_store_rou_o(rou_is_acc_store),
       .rou_is_age_active_rou_o(rou_is_age_active),
       // To AGEs
       .age_const_iv_o(age_const_iv),
-      .age_iv_strides_o(age_iv_strides),
       .age_is_age_active_o(age_is_age_active),
       .age_n_banks_o(age_n_banks),
       .age_start_banks_o(age_start_banks),

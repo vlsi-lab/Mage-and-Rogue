@@ -52,7 +52,7 @@ module peripheral_regs
     output loop_pipeline_info_t reg_lp_info_o,
   %endif
     output loop_vars_t [N_LP-1:0] reg_loop_vars_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_iv_contraints_o,
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_age_strides_o,
     output logic [ACC_CFGMEM_SIZE-1:0][N_AGE_TOT-1:0][NBIT_CFG_STREAM_WORD-1:0] reg_agu_cfgmem_o,
     ////////////////////////////////
     //    XBars Configuration     //
@@ -140,10 +140,10 @@ module peripheral_regs
 %endif
 
     ////////////////////////////////
-    //      IVs Constraints       //
+    //        AGE Strides         //
     ////////////////////////////////
 %for s in range(n_age_tot):
-    reg_iv_contraints_o[${int(s/n_age_per_stream)}][${int(s%n_age_per_stream)}] = reg2hw.age_iv_constraints[${int(s/4)}].c${int(s%4)}.q;
+    reg_age_strides_o[${int(s/n_age_per_stream)}][${int(s%n_age_per_stream)}] = reg2hw.age_strides[${int(s/4)}].c${int(s%4)}.q;
 %endfor
 
     ////////////////////////////////
