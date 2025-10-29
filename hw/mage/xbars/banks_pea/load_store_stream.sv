@@ -17,28 +17,38 @@ module load_store_stream
     input  logic [    LOG_N_PE_PER_GROUP-1:0]                             s_stream_sel_i,
     //signals from AGEs
     input  logic [      N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] age_bank_i,
+    input  logic [      N_AGE_PER_STREAM-1:0]                             valid_ls_i,
     input  logic [      N_AGE_PER_STREAM-1:0]                             valid_i,
     //selection for load and store streams
     output logic [LOG_N_BANKS_PER_STREAM-1:0]                             sel_load_stream_o,
     output logic [    LOG_N_PE_PER_GROUP-1:0]                             sel_store_stream_o
 );
 
-  logic                              lns;
-  logic [LOG_N_BANKS_PER_STREAM-1:0] age_bank;
-  logic                              valid;
+  logic [LOG_N_BANKS_PER_STREAM-1:0] age_bank_l;
+  logic [LOG_N_BANKS_PER_STREAM-1:0] age_bank_s;
+  logic                              valid_l;
+  logic                              valid_s;
 
   always_comb begin
-    age_bank = age_bank_i[l_stream_sel_i];
-    valid = valid_i[l_stream_sel_i];
+    age_bank_l = age_bank_i[l_stream_sel_i];
+    age_bank_s = age_bank_i[s_stream_sel_i];
+    valid_l    = valid_ls_i[l_stream_sel_i];
+    valid_s    = valid_i[s_stream_sel_i];
   end
 
   always_comb begin
-    if (valid == 1'b1) begin
-      sel_load_stream_o  = age_bank;
-      sel_store_stream_o = s_stream_sel_i;  //static selection for store stream
+    if (valid_l == 1'b1) begin
+      sel_load_stream_o = age_bank_l;
     end else begin
-      sel_load_stream_o  = '0;
-      sel_store_stream_o = s_stream_sel_i;  //static selection for store stream
+      sel_load_stream_o = '0;
+    end
+  end
+
+  always_comb begin
+    if (valid_s == 1'b1) begin
+      sel_store_stream_o = age_bank_s;
+    end else begin
+      sel_store_stream_o = '0;
     end
   end
 

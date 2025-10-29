@@ -22,7 +22,7 @@
         n_pea_rows: 4,
         n_pea_cols: 4,
         n_neigh_pe: 4,
-        pattern_neigh_pe: ["LEFT", "UP", "RIGHT", "DOWN"],
+        pattern_neigh_pe: ["UP", "LEFT", "RIGHT", "DOWN"],
     },
 
     dae_params: {

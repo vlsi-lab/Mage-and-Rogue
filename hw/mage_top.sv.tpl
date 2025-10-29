@@ -23,14 +23,14 @@ module mage_top
     input  logic                                          rst_n_i,
     /* Reg Interface */
     input  reg_req_t                                      reg_req_i,
-    output reg_rsp_t                                      reg_rsp_o
+    output reg_rsp_t                                      reg_rsp_o,
 %if streaming_cgra == 1:
     ////////////////////////////////////////////////////////////////
     //                Streaming CGRA Configuration                //
     ////////////////////////////////////////////////////////////////
     input fifo_req_t [N_DMA_CH-1:0] fifo_req_i,
     output fifo_resp_t [N_DMA_CH-1:0] fifo_resp_o,
-    output logic [N_DMA_CH-1:0] mage_done_o,
+    output logic [N_DMA_CH-1:0] mage_done_o
   %elif dae_cgra == 1:
     ////////////////////////////////////////////////////////////////
     //                   DAE CGRA Configuration                   //
@@ -44,7 +44,7 @@ module mage_top
     output logic     [N_BANKS-1:0][           N_BITS-1:0] dmem_wdata_o,
     input  logic     [N_BANKS-1:0][           N_BITS-1:0] dmem_rdata_i,
     /* Interrupt */
-    output logic                                          mage_intr_o,
+    output logic                                          mage_intr_o
 %endif
 );
 
@@ -65,18 +65,18 @@ module mage_top
   ////////////////////////////////////////////////////////////////
   //                     AGU Configuration                      //
   ////////////////////////////////////////////////////////////////
-  %if kernel_len == 1:
+  %if kernel_len != 1:
   loop_pipeline_info_t reg_lp_info;
   %endif
   loop_vars_t [N_LP-1:0] reg_loop_vars;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_age_strides;
+  logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] reg_age_strides;
   logic [ACC_CFGMEM_SIZE-1:0][N_AGE_TOT-1:0][NBIT_CFG_STREAM_WORD-1:0] reg_mage_cfgmem;
   ////////////////////////////////////////////////////////////////
   //                  Crossbars Configuration                   //
   ////////////////////////////////////////////////////////////////
-  logic [(N_CFG_REGS_LOAD_STREAM*32)-1:0] reg_cfg_l_stream_sel;
-  logic [(N_CFG_REGS_STORE_STREAM*32)-1:0] reg_cfg_s_stream_sel;
-  logic [(N_CFG_REGS_SEL_OUT_PEA*32)-1:0] reg_cfg_sel_out_pea;
+  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][KMEM_SIZE-1:0][LOG_N_AGE_PER_STREAM-1:0] reg_cfg_l_stream_sel;
+  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][KMEM_SIZE-1:0][LOG_N_PE_PER_GROUP-1:0] reg_cfg_s_stream_sel;
+  logic [N_OUT_PEA-1:0][KMEM_SIZE-1:0][LOG_M-1:0] reg_cfg_sel_out_pea;
   ////////////////////////////////////////////////////////////////
   //                     Crossbars Signals                      //
   ////////////////////////////////////////////////////////////////
@@ -93,8 +93,8 @@ module mage_top
   logic [N_CFG_ADDR_BITS-1:0] actual_cfg_addr_pea;
   logic [N_CFG_ADDR_BITS-1:0] actual_cfg_addr_xbar;
   logic [N_CFG_ADDR_BITS-1:0] actual_cfg_addr_regs_out_pea;
-% endif
   logic end_pke;
+% endif
   state_t state;
   ////////////////////////////////////////////////////////////////
   //              Processing Element Array (PEA)                //
@@ -204,7 +204,7 @@ module mage_top
   % if kernel_len != 1:
       .reg_lp_info_o(reg_lp_info),
   %endif
-  % if format_part != 1:
+  % if format_part == 1:
       .reg_acc_vec_mode_o(reg_acc_vec_mode),
   %endif
       .reg_loop_vars_o(reg_loop_vars),
@@ -243,23 +243,38 @@ module mage_top
       .reg_cfg_pea_o(reg_cfg_pea)
   );
 %if dae_cgra == 1:
+  % if kernel_len != 1:
   cfg_regs_out_pea cfg_regs_out_pea_inst (
       .reg_cfg_sel_out_pea_i(reg_cfg_sel_out_pea),
-  % if kernel_len != 1:
       .rcfg_ctrl_addr_i(actual_cfg_addr_regs_out_pea),
-  % endif
       .sel_output_o(cfg_sel_pea_output)
   );
+  %else:
+  always_comb begin
+    for (int i = 0; i < N_OUT_PEA; i++) begin
+      cfg_sel_pea_output[i] = reg_cfg_sel_out_pea[i][0];
+    end
+  end
+  %endif
 
+% if kernel_len != 1:
   cfg_regs_ls_stream_sel cfg_regs_ls_stream_sel_inst (
       .reg_cfg_l_stream_sel_i(reg_cfg_l_stream_sel),
       .reg_cfg_s_stream_sel_i(reg_cfg_s_stream_sel),
-  % if kernel_len != 1:
       .rcfg_ctrl_addr_i(actual_cfg_addr_xbar),
-  % endif
       .l_stream_sel_o(l_stream_sel),
       .s_stream_sel_o(s_stream_sel)
   );
+%else:
+  always_comb begin
+    for (int i = 0; i < N_BANKS_GROUP; i++) begin
+      for (int j = 0; j < N_BANKS_PER_STREAM; j++) begin
+        l_stream_sel[i][j] = reg_cfg_l_stream_sel[i][j][0];
+        s_stream_sel[i][j] = reg_cfg_s_stream_sel[i][j][0];
+      end
+    end
+  end
+%endif
 
   ////////////////////////////////////////////////////////////////
   //                           FSM                              //
@@ -284,15 +299,15 @@ module mage_top
       .rcfg_ctrl_addr_i(actual_cfg_addr_pea),
       .ctrl_pea_o(cfg_pea)
   );
-% else:
+%else:
   always_comb begin
-    for (int i = 0; i < N; i = i + 1) begin
-      for (int j = 0; j < M; j = j + 1) begin
-        cfg_pea[i][j] = reg_cfg_pea[i][j][0];
+    for (int i = 0; i < N; i++) begin
+      for (int j = 0; j < M; j++) begin
+        cfg_pea[i][j] = reg_cfg_pea[i][j][0][N_CFG_BITS_PE-1:0];
       end
     end
-  end
-% endif
+  end 
+%endif
 
 %if streaming_cgra == 1:
   assign mage_done = &mage_done_o;
@@ -320,7 +335,6 @@ module mage_top
 %endif
 %if dae_cgra == 1:
       .sel_output_i(cfg_sel_pea_output),
-      .start_d_i(start_d),
       .pea_data_i(pea_inputs),
       .acc_match_i(acc_match),
       .pea_data_o(pea_outputs),
@@ -340,16 +354,16 @@ module mage_top
       .start_d_o(start_d),
       .end_lp_o(end_lp),
       /* Configuration */
-% if kernel_len != 1:
       .reg_loop_vars_i(reg_loop_vars),
+% if kernel_len != 1:
+      .reg_lp_info_i(reg_lp_info),
       .reg_static_no_timemux_i(reg_static_n_timemux_mage),
       .cfgmem_addr_d_o(cfg_addr),
 % endif
       .reg_age_strides_i(reg_age_strides),
       .reg_II_i(reg_II),
-      .reg_lp_info_i(reg_lp_info),
       .cfgmem_content_i(reg_mage_cfgmem),
-% if format_part != 1:
+% if format_part == 1:
       .reg_acc_vec_mode_i(reg_acc_vec_mode),
 % endif
       /* Outputs */
@@ -455,7 +469,8 @@ module mage_top
               .l_stream_sel_i(l_stream_sel[m][n]),
               .s_stream_sel_i(s_stream_sel[m][n]),
               .age_bank_i(agu_bank_ls[m]),
-              .valid_i(agu_valid_ls[m]),
+              .valid_ls_i(agu_valid_ls[m]),
+              .valid_i(agu_valid[m]),
               .sel_load_stream_o(cfg_sel_dmem_pea[m][n]),
               .sel_store_stream_o(cfg_sel_pea_dmem[m][n])
           );
@@ -474,7 +489,7 @@ module mage_top
           .age_addr_i(agu_addr[j]),
           .age_valid_i(agu_valid[j]),
           .age_we_i(agu_lns[j]),
-          .age_bank_i(agu_bank_ls[j]),
+          .age_bank_i(agu_bank[j]),
           .age_dmem_addr_o(agu_dmem_addr[j]),
           .age_dmem_bank_o(agu_dmem_bank[j]),
           .age_dmem_we_o(agu_dmem_we[j]),
@@ -485,6 +500,7 @@ module mage_top
 
   endgenerate
 
+  // copy of valid_ls that could be removed, it is used as response from memory, which is assumed to be one cc later that req
   always_ff @(posedge clk_i or negedge rst_n_i) begin
     if (~rst_n_i) begin
       agu_dmem_valid_d <= '0;

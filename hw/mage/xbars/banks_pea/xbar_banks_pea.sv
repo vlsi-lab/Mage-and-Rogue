@@ -26,7 +26,7 @@ module xbar_banks_pea
 
 
   always_comb begin
-    for (i = 0; i < N_BANKS_PER_STREAM; i++) begin 
+    for (int i = 0; i < N_BANKS_PER_STREAM; i++) begin
       in_pea_o[i]  = out_dmem_i[sel_dmem_pea_i[i]];
       in_dmem_o[i] = out_pea_i[sel_pea_dmem_i[i]];
     end

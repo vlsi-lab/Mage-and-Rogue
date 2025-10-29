@@ -19,8 +19,6 @@ module pea
     ////////////////////////////////
     //   DAE Interface for PEA    //
     ////////////////////////////////
-    // start signal from AGU
-    input  logic                                                  start_d_i,
     // Accumulation end signal from AGU
     input  logic                                                  acc_match_i,
     // Input data from internal SpM
@@ -74,7 +72,6 @@ module pea
   ////////////////////////////////
   //    DAE: I/O of PEA Rows    //
   ////////////////////////////////
-  logic [   N_IN_PEA-1:0][N_BITS-1:0] in_data_pea;
   %for r in range(n_pea_rows):
   logic [          M-1:0][N_BITS-1:0] out_data_row${r};  
   %endfor
@@ -218,7 +215,11 @@ logic out_delay_op_valid${r}${c};
 
 %if dae_cgra == 1:
   %for r in range(2*n_pea_rows):
-  assign pea_data_o[${r}] = out_data_row${int(r/2)}[sel_output_i[${r}]]; 
+    %if r % 2 == 0:
+  assign pea_data_o[${int(r/2)}] = out_data_row${int(r/2)}[sel_output_i[${r}]]; 
+    %else:
+  assign pea_data_o[${n_pea_rows+int(r/2)}] = out_data_row${int(r/2)}[sel_output_i[${r}]];
+    %endif
   %endfor
 %endif
 %if streaming_cgra == 1:
@@ -271,7 +272,7 @@ logic out_delay_op_valid${r}${c};
           %for j in range(len(pea_in_mem_placement[i])):
             % if i == r and j == n:
               %if pea_in_mem_placement[i][j] != None:
-  assign in_data_pe${r}${c}[MEM_IN_${j}] = in_data_pea[${pea_in_mem_placement[i][j]}]; <% k = k + 1 %>
+  assign in_data_pe${r}${c}[MEM_IN_${j}] = pea_data_i[${pea_in_mem_placement[i][j]}]; <% k = k + 1 %>
               %else:
   assign in_data_pe${r}${c}[MEM_IN_${j}] = '0; <% k = k + 1 %>
               %endif       

@@ -48,18 +48,18 @@ module peripheral_regs
     ////////////////////////////////
     //     AGU Configuration      //
     ////////////////////////////////
-  %if kernel_len == 1:
+  %if kernel_len != 1:
     output loop_pipeline_info_t reg_lp_info_o,
   %endif
     output loop_vars_t [N_LP-1:0] reg_loop_vars_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_age_strides_o,
+    output logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] reg_age_strides_o,
     output logic [ACC_CFGMEM_SIZE-1:0][N_AGE_TOT-1:0][NBIT_CFG_STREAM_WORD-1:0] reg_agu_cfgmem_o,
     ////////////////////////////////
     //    XBars Configuration     //
     ////////////////////////////////
-    output logic [(N_CFG_REGS_SEL_OUT_PEA*32)-1:0] reg_cfg_sel_out_pea_o,
-    output logic [(N_CFG_REGS_LOAD_STREAM*32)-1:0] reg_cfg_l_stream_sel_o,
-    output logic [(N_CFG_REGS_STORE_STREAM*32)-1:0] reg_cfg_s_stream_sel_o,
+    output logic [N_OUT_PEA-1:0][KMEM_SIZE-1:0][LOG_M-1:0] reg_cfg_sel_out_pea_o,
+    output logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][KMEM_SIZE-1:0][LOG_N_AGE_PER_STREAM-1:0] reg_cfg_l_stream_sel_o,
+    output logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][KMEM_SIZE-1:0][LOG_N_PE_PER_GROUP-1:0] reg_cfg_s_stream_sel_o,
 %endif
 %if streaming_cgra == 1:
     ////////////////////////////////
@@ -114,7 +114,7 @@ module peripheral_regs
     ////////////////////////////////
     //           Status           //
     ////////////////////////////////
-    hw2reg.status.done.de = 1'b1;
+    hw2reg.status.done.de = (state_i == DONE || state_i == EXEC) ? 1'b1 : 1'b0;
     hw2reg.status.done.d = (state_i == DONE) ? 1'b1 : 1'b0;
     hw2reg.status.start.de = (state_i == DONE) ? 1'b1 : 1'b0;
     hw2reg.status.start.d = 1'b0;
@@ -143,7 +143,9 @@ module peripheral_regs
     //        AGE Strides         //
     ////////////////////////////////
 %for s in range(n_age_tot):
-    reg_age_strides_o[${int(s/n_age_per_stream)}][${int(s%n_age_per_stream)}] = reg2hw.age_strides[${int(s/4)}].c${int(s%4)}.q;
+  %for i in range(4):
+    reg_age_strides_o[${s}][${i}] = reg2hw.strides[${s}].s${i}.q;
+  %endfor
 %endfor
 
     ////////////////////////////////
@@ -169,7 +171,7 @@ module peripheral_regs
     for(int i = 0; i < ACC_CFGMEM_SIZE; i++) begin
 %for i in range(int(n_age_tot/n_age_per_stream)):
   %for j in range(n_age_per_stream):
-      reg_mage_cfgmem_o[i][${i*n_age_per_stream+j}] = reg2hw.cfg_mage_s${i}_age${j}[i].q[NBIT_CFG_STREAM_WORD-1:0];
+      reg_agu_cfgmem_o[i][${i*n_age_per_stream+j}] = reg2hw.cfg_mage_s${i}_age${j}[i].q[NBIT_CFG_STREAM_WORD-1:0];
   %endfor
 %endfor
 
@@ -187,14 +189,34 @@ module peripheral_regs
     ////////////////////////////////
     //           XBars            //
     ////////////////////////////////
-%if n_age_tot * n_age_per_stream > 32:
-    reg_cfg_l_stream_sel_o = {reg2hw.l_stream_sel_age[1].q, reg2hw.l_stream_sel_age[0].q};
-    reg_cfg_s_stream_sel_o = {reg2hw.s_stream_sel_age[1].q, reg2hw.s_stream_sel_age[0].q};
-%else:
-    reg_cfg_l_stream_sel_o = reg2hw.l_stream_sel_age[0].q;
-    reg_cfg_s_stream_sel_o = reg2hw.s_stream_sel_age[0].q;
-%endif
-    reg_cfg_sel_out_pea_o = {reg2hw.sel_out_pea[1].q, reg2hw.sel_out_pea[0].q};
+<%prev_idx = 0%>
+<%idx = m.ceil(m.log(n_age_per_stream))%>
+%for s in range(int(n_age_tot/n_age_per_stream)):
+  %for a in range(n_age_per_stream):
+    %for k in range(kernel_len):
+      reg_cfg_l_stream_sel_o[${s}][${a}][${k}] = reg2hw.l_stream_sel_age[0].q[${idx-1}:${prev_idx}]; <%prev_idx = idx%> <%idx = idx + m.ceil(m.log(n_age_per_stream))%>
+    %endfor
+  %endfor
+%endfor
+
+<%prev_idx = 0%>
+<%idx = m.ceil(m.log(n_age_per_stream))%>
+%for s in range(int(n_age_tot/n_age_per_stream)):
+  %for a in range(n_age_per_stream):
+    %for k in range(kernel_len):
+      reg_cfg_s_stream_sel_o[${s}][${a}][${k}] = reg2hw.s_stream_sel_age[0].q[${idx-1}:${prev_idx}]; <%prev_idx = idx%> <%idx = idx + m.ceil(m.log(n_age_per_stream))%>
+    %endfor
+  %endfor
+%endfor
+
+<%prev_idx = 0%>
+<%idx = m.ceil(m.log(n_pea_cols))%>
+%for r in range(n_pea_rows*2):
+    %for k in range(kernel_len):
+      reg_cfg_sel_out_pea_o[${r}][${k}] = reg2hw.sel_out_pea[0].q[${idx-1}:${prev_idx}]; <%prev_idx = idx%> <%idx = idx + m.ceil(m.log(n_pea_cols))%>
+    %endfor
+%endfor
+
 %endif
 
 %if streaming_cgra == 1:

@@ -10,8 +10,6 @@
 module fu_dae_full_gemm
   import pea_pkg::*;
 (
-    input  logic                   clk_i,
-    input  logic                   rst_n_i,
     input  logic      [N_BITS-1:0] a_i,
     input  logic      [N_BITS-1:0] b_i,
     input  logic                   acc_match_i,
@@ -20,11 +18,31 @@ module fu_dae_full_gemm
     output logic      [N_BITS-1:0] res_o
 );
 
-  logic              acc_match;
+  logic                acc_match;
 
   // Internal signed versions of the inputs
-  logic [N_BITS-1:0] a_signed;
-  logic [N_BITS-1:0] b_signed;
+  logic [  N_BITS-1:0] a_signed;
+  logic [  N_BITS-1:0] b_signed;
+
+  logic [    N_BITS:0] add_res;
+  logic [  N_BITS-1:0] mul_res;
+  logic [  N_BITS-1:0] shift_res;
+  logic [2*N_BITS-1:0] shift_res_ext;
+  logic [  N_BITS-1:0] lsh_res;
+
+  logic [  N_BITS-1:0] mul_op1;
+  logic [  N_BITS-1:0] mul_op2;
+
+  logic [  N_BITS-1:0] lsh_op1_rev;
+  logic [2*N_BITS-1:0] shift_op1;
+  logic [  N_BITS-1:0] shift_op2;
+
+  logic [    N_BITS:0] add_op1;
+  logic [    N_BITS:0] add_op2;
+
+  logic [  N_BITS-1:0] op1_neg;
+  logic [  N_BITS-1:0] op2_neg;
+
   assign b_signed  = $signed(b_i);
 
   ////////////////////////////////
@@ -46,9 +64,14 @@ module fu_dae_full_gemm
       the output of the FU is fed back to the input of the FU. When asserted, the output of the muxa is fed to the input of the FU
   */
   always_comb begin
-    a_signed = $signed(a_i);
-    if (!acc_match_i) begin
-      a_signed = $signed(pe_res_i);
+    if (instr_i == ACC) begin
+      if (!acc_match) begin
+        a_signed = $signed(pe_res_i);
+      end else begin
+        a_signed = $signed(a_i);
+      end
+    end else begin
+      a_signed = $signed(a_i);
     end
   end
 
@@ -56,10 +79,9 @@ module fu_dae_full_gemm
   //      int32 Operators       //
   ////////////////////////////////
 
-  // Negated versione of a, b and temp_op_reg
+  // Negated versione of a and b
   assign op1_neg = ~a_signed;
   assign op2_neg = ~b_signed;
-  assign op2_neg_d1 = ~temp_op_reg;
 
   // 32-bit adder
   assign add_res = add_op1 + add_op2;

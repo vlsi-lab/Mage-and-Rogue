@@ -131,6 +131,7 @@
         },
       ]
     },
+%if kernel_len != 1:
     { name:     "PEA_CONTROL_SNT",
       desc:     "Each bit controls the control mode of each pe, static or time-multiplexed",
       swaccess: "rw",
@@ -141,6 +142,7 @@
         }
       ]
     },
+%endif
     { multireg:
         { name: "STRIDES",
         desc: "Configuration for AGEs strides",
@@ -168,6 +170,7 @@
         ],
         }
     },
+%if kernel_len != 1:
     { name:     "PKE",
       desc:     "Length of Prologue, Kernel and Epilogue execution stage, and number of times for Kernel to be repeated",
       swaccess: "rw",
@@ -192,6 +195,7 @@
         }
       ]
     },
+%endif
 %endif
   <%import math as m%>
 %for r in range(n_pea_rows):
@@ -287,6 +291,7 @@
         ],
         }
     },
+%if streaming_cgra == 1:
     { multireg:
         { name: "PEA_RF",
         desc: "PEs RF",
@@ -301,37 +306,7 @@
         },
         ],
         }
-    },
-%if dae_cgra == 1:
-    { multireg:
-        { name: "AGE_STRIDES",
-        desc: "Configuration for AGE IV constraints",
-        count : "${int(n_age_tot/4)}",
-        cname: "AGE_STRIDES",
-        swaccess: "rw",
-        hwaccess: "hro",
-        fields: [
-        { bits: "7:0", 
-          name: "C0",
-          desc: "Constraint 0" 
-        },
-        { bits: "15:8", 
-          name: "C1",
-          desc: "Constraint 1" 
-        },
-        { bits: "23:16", 
-          name: "C2",
-          desc: "Constraint 2" 
-        },
-        { bits: "31:24", 
-          name: "C3",
-          desc: "Constraint 3" 
-        },
-        ],
-        }
-    },
-%endif
-%if streaming_cgra == 1:
+    }
   %for i in range(n_dma_ch):
     { name: "TRANS_SIZE_DMA_CH_${i}",
       desc: "Transaction size for DMA channel ${i}. It indicates the number of elements to be read or written by that dma channel. Once the associated down-counter reaches zero, the DMA channel is will receive a done signal",

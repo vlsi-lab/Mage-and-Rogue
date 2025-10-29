@@ -31,7 +31,7 @@ module hwlp
   logic [   N_LP-1:0][NBIT_LP_IV-1:0] loop_vars;
   logic                               count_en;
   logic [NBIT_II-1:0]                 ii_count;
-  logic [   N_LP-1:0]                 end_lp;
+  logic                               end_lp;
   logic [   N_LP-1:0]                 end_condition_lp;
 
   assign end_condition_lp_o = end_condition_lp;
@@ -69,70 +69,55 @@ module hwlp
     if (!rst_n_i) begin
       for (int i = 0; i < N_LP; i = i + 1) begin
         loop_vars[i] <= reg_loop_vars_i[i].iv;
-        end_lp[i] <= 1'b0;
       end
-    end else if (count_en_i == 1'b1 && end_lp[3] == 1'b0) begin
+      end_lp <= 1'b0;
+    end else if (count_en_i == 1'b1 && end_lp == 1'b0) begin
 
       if (count_en) begin
 
         if (end_condition_lp[0]) begin
           loop_vars[0] <= reg_loop_vars_i[0].iv;
-          end_lp[0] <= 1'b1;
         end else begin
           loop_vars[0] <= loop_vars[0] + reg_loop_vars_i[0].inc;
-          end_lp[0] <= 1'b0;
         end
 
         if (end_condition_lp[0] & end_condition_lp[1]) begin
           loop_vars[1] <= reg_loop_vars_i[1].iv;
-          end_lp[1] <= 1'b1;
         end else if (end_condition_lp[0]) begin
           loop_vars[1] <= loop_vars[1] + reg_loop_vars_i[1].inc;
-          end_lp[1] <= 1'b0;
-        end else begin
-          loop_vars[1] <= loop_vars[1];
-          end_lp[1] <= 1'b0;
         end
 
         if (end_condition_lp[0] & end_condition_lp[1] & end_condition_lp[2]) begin
           loop_vars[2] <= reg_loop_vars_i[2].iv;
-          end_lp[2] <= 1'b1;
         end else if (end_condition_lp[0] & end_condition_lp[1]) begin
           loop_vars[2] <= loop_vars[2] + reg_loop_vars_i[2].inc;
-          end_lp[2] <= 1'b0;
-        end else begin
-          loop_vars[2] <= loop_vars[2];
-          end_lp[2] <= 1'b0;
         end
 
         if (end_condition_lp[0] & end_condition_lp[1] & end_condition_lp[2] & end_condition_lp[3]) begin
           loop_vars[3] <= reg_loop_vars_i[3].iv;
-          end_lp[3] <= 1'b1;
+          end_lp <= 1'b1;
         end else if (end_condition_lp[0] & end_condition_lp[1] & end_condition_lp[2]) begin
           loop_vars[3] <= loop_vars[3] + reg_loop_vars_i[0].inc;
-          end_lp[3] <= 1'b0;
-        end else begin
-          loop_vars[3] <= loop_vars[3];
-          end_lp[3] <= 1'b0;
+          end_lp <= 1'b0;
         end
 
       end else begin
         for (int i = 0; i < N_LP; i = i + 1) begin
           loop_vars[i] <= loop_vars[i];
-          end_lp[i] <= 1'b0;
         end
+        end_lp <= 1'b0;
       end
 
     end else begin
       for (int i = 0; i < N_LP; i = i + 1) begin
         loop_vars[i] <= reg_loop_vars_i[i].iv;
-        end_lp[i] <= 1'b0;
       end
+      end_lp <= 1'b0;
     end
 
   end
 
   assign loop_vars_o = loop_vars;
-  assign end_lp_o = end_lp[3];
+  assign end_lp_o = end_lp;
 
 endmodule

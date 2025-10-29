@@ -28,6 +28,7 @@ module age_unit
     input logic [N_AGE_TOT-1:0] is_age_active_i,
     //end signals
     input logic [N_AGE_TOT-1:0] end_lp_i,
+    output logic [N_AGE_TOT-1:0] end_lp_o,
     //FA_GEN
     //constant ivs for each subscript of each stream
     input logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0] const_iv_i,
@@ -46,8 +47,8 @@ module age_unit
     output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] stream_bank_ls_o,
     output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] stream_pea_acc_reset_o,
     output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] stream_valid_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] stream_lns_o,
-    output logic [N_AGE_TOT-1:0] stream_active_o
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] stream_valid_ls_o,
+    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] stream_lns_o
 );
 
   //Generate AGEs
@@ -62,6 +63,7 @@ module age_unit
             .rst_n_i(rst_n_i),
             .start_i(start_i),
             .end_lp_i(end_lp_i[i*N_AGE_PER_STREAM+j]),
+            .end_lp_o(end_lp_o[i*N_AGE_PER_STREAM+j]),
             .valid_i(stream_valid_i[i*N_AGE_PER_STREAM+j]),
             .active_i(is_age_active_i[i*N_AGE_PER_STREAM+j]),
             .iv_i(rou_i[i*N_AGE_PER_STREAM+j]),
@@ -78,8 +80,8 @@ module age_unit
             .age_bank_ls_stream_o(stream_bank_ls_o[i][j]),
             .pea_acc_reset_o(stream_pea_acc_reset_o[i][j]),
             .valid_o(stream_valid_o[i][j]),
-            .lns_o(stream_lns_o[i][j]),
-            .active_o(stream_active_o[i*N_AGE_PER_STREAM+j])
+            .valid_ls_o(stream_valid_ls_o[i][j]),
+            .lns_o(stream_lns_o[i][j])
         );
       end
     end

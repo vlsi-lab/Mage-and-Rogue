@@ -29,7 +29,7 @@ module dmem_decoder
     /* Selected outputs to internal SpM */
     output logic   [N_BANKS-1:0]                        dmem_req_o,
     output logic   [N_BANKS-1:0]                        dmem_we_o,
-    output logic   [N_BANKS-1:0][3:0]                   dmem_be_o,
+    output logic   [N_BANKS-1:0][                  3:0] dmem_be_o,
     output logic   [N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] dmem_addr_o,
     output logic   [N_BANKS-1:0][           N_BITS-1:0] dmem_wdata_o,
     output logic   [N_BANKS-1:0][           N_BITS-1:0] agu_dmem_rdata_o,
@@ -42,24 +42,20 @@ module dmem_decoder
 
 );
 
-  localparam logic [31:0] START_ADDRESS = 32'hF0000000 + 32'h00000000;
-  localparam logic [31:0] SIZE = 32'h100000;
-
   logic                                 is_dmem_address;
-  logic [               32-1:0]         addr_lrs_2;
+  logic [                 12:0]         addr_lrs_2;
   logic [          N_BANKS-1:0]         active_banks;
 
   logic [          N_BANKS-1:0]         ext_dmem_req;
-  logic [          N_BANKS-1:0][3:0]    ext_dmem_be;
+  logic [          N_BANKS-1:0][   3:0] ext_dmem_be;
   logic [          N_BANKS-1:0]         ext_dmem_req_d;
   logic [          N_BANKS-1:0]         ext_dmem_we;
-  logic [               32-1:0]         ext_dmem_addr;
   logic [          N_BANKS-1:0][32-1:0] ext_dmem_rdata;
 
   logic [$clog2(BANK_SIZE)-1:0]         addr_to_bank;
 
 
-  assign addr_lrs_2 = ext_dmem_addr_i >> 2;
+  assign addr_lrs_2 = ext_dmem_addr_i[14:2];
 
   always_comb begin
 
@@ -145,18 +141,18 @@ module dmem_decoder
 
         // SpM accepts requests from AGU and external system
         dmem_req_o = agu_dmem_req_i | ext_dmem_req;
-        
+
         // SpM accepts WE from AGU and external system
         dmem_we_o  = agu_dmem_we_i | ext_dmem_we;
 
         for (int i = 0; i < N_BANKS; i++) begin
 
           // SpM BE chosen based on external request bit
-          dmem_we_o  = (ext_dmem_req[i] == 1'b1) ? ext_dmem_be[i] : 4'b1111;
+          dmem_be_o[i] = (ext_dmem_req[i] == 1'b1) ? ext_dmem_be[i] : 4'b1111;
 
           // SpM address chosen based on external request bit
-          dmem_addr_o[i]  = (ext_dmem_req[i] == 1'b1) ? addr_to_bank : agu_dmem_addr_i[i];
-          
+          dmem_addr_o[i] = (ext_dmem_req[i] == 1'b1) ? addr_to_bank : agu_dmem_addr_i[i];
+
           // SpM write data chosen based on external request bit
           dmem_wdata_o[i] = (ext_dmem_req[i] == 1'b1) ? ext_dmem_wdata_i : agu_dmem_wdata_i[i];
         end
@@ -181,7 +177,7 @@ module dmem_decoder
         end
 
       end
-      
+
       /*
         In the IDLE state:
           > The CGRA CANNOT read/write to banks
@@ -191,7 +187,7 @@ module dmem_decoder
       default: begin
         // SpM accepts requests from external system
         dmem_req_o = ext_dmem_req;
-        
+
         // SpM accepts WE from external system
         dmem_we_o  = ext_dmem_we;
 
@@ -199,6 +195,7 @@ module dmem_decoder
         dmem_be_o  = ext_dmem_be;
 
         for (int i = 0; i < N_BANKS; i++) begin
+
           // SpM address chosen based on external request bit
           dmem_addr_o[i]  = (ext_dmem_req[i] == 1'b1) ? addr_to_bank : '0;
 

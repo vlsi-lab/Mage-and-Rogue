@@ -7,8 +7,6 @@ filesets:
 
   files_packages:
     files:  
-    - hw/mage/packages/obi_pkg.sv
-    - hw/mage/packages/reg_pkg.sv
     - hw/mage/packages/agu_pkg.sv
     - hw/mage/packages/pea_pkg.sv
     - hw/mage/packages/xbar_pkg.sv  
@@ -56,7 +54,6 @@ filesets:
     depend:
     - pulp-platform.org::tech_cells_generic
     files:  
-    - hw/mage/memory/sram_wrapper.sv
     - hw/mage/memory/data_memory.sv
     file_type: systemVerilogSource
 

@@ -80,9 +80,14 @@ module fu_dae_part_gemm_acc
         the output of the FU is fed back to the input of the FU. When asserted, the output of the muxa is fed to the input of the FU
     */
   always_comb begin
-    op_a = a_i;
-    if (!acc_match_i) begin
-      op_a = pe_res_i;
+    if (instr_i == ACC) begin
+      if (!acc_match) begin
+        op_a = pe_res_i;
+      end else begin
+        op_a = a_i;
+      end
+    end else begin
+      op_a = a_i;
     end
   end
 

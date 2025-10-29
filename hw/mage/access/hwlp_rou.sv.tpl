@@ -29,8 +29,10 @@ module hwlp_rou
     input logic [HWLP_RF_SIZE-1:0] hwlp_valid_i,
     //input from dispather that indicates if the stream handles the store operation for an accumulation
     input logic [N_AGE_TOT-1:0] is_acc_store_rou_i,
+%if format_part == 1:
     //accumulation vector mode
     input logic [1:0] reg_acc_vec_mode_i,
+%endif    
     //output for the validity of the stream
     output logic [N_AGE_TOT-1:0] stream_valid_o,
     output logic [N_AGE_TOT-1:0] pea_acc_reset_o,
@@ -114,28 +116,43 @@ module hwlp_rou
           // If the iv constraint selector is not 4, it indicates the iv to be constrained (at the value kept in reg) for the respective stream
           is_constraint_iv_valid[i*N_AGE_PER_STREAM+j] = (stream_hwlp[i*N_AGE_PER_STREAM+j][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == iv_constraints_i[i][j]) &&
                                                          ((zero_condition[i][j] & condition_mask[i][j]) == '0);
-          // If the stream handles the store of an accumulation, the PEA has to be informed on when the accumulation ends too
-          // This is done by checking if the constrained IV is equal to its constraint but considering an entry of the RF active before the one of the acc store stream
-          // The one to chose depends on the accumulation vector mode
           if (is_acc_store_rou_i[i*N_AGE_PER_STREAM+j]) begin
+%if format_part == 1:
+            // If the stream handles the store of an accumulation, the PEA has to be informed on when the accumulation ends too
+            // This is done by checking if the constrained IV is equal to its constraint but considering an entry of the RF active before the one of the acc store stream
+            // The one to chose depends on the accumulation vector mode
+            // is_pea_acc_constraint_valid is asserted if:
+            //  -> the entry of the RF is equal to the constraint set by the programmer
+            //  AND
+            //  -> the bits set in condition_mask of the AGE are also set in the end condition entry in the related RF, which means that the loop IVs that we want to be zero are zero
             case (reg_acc_vec_mode_i)
               2'b00: begin
-                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-2][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
-                                                                 ((condition_mask[i][j] && hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-2]) == condition_mask[i][j]);
+                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd2][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
+                                                                 ((condition_mask[i][j] & hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd2]) == condition_mask[i][j]);
               end
               2'b01: begin
-                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-5][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
-                                                                 ((condition_mask[i][j] && hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-5]) == condition_mask[i][j]);
+                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd5][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
+                                                                 ((condition_mask[i][j] & hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd5]) == condition_mask[i][j]);
               end
               2'b10: begin
-                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
-                                                                 ((condition_mask[i][j] && hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4]) == condition_mask[i][j]);
+                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd4][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
+                                                                 ((condition_mask[i][j] & hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd4]) == condition_mask[i][j]);
               end
               default: begin
-                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-2][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
-                                                                 ((condition_mask[i][j] && hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-2]) == condition_mask[i][j]);
+                is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd2][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
+                                                                 ((condition_mask[i][j] & ~(hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd2])) == condition_mask[i][j]);
               end
             endcase
+%else:
+            // If the stream handles the store of an accumulation, the PEA has to be informed on when the accumulation ends too
+            // This is done by checking if the constrained IV is equal to its constraint but considering an entry of the RF active before the one of the acc store stream
+            // is_pea_acc_constraint_valid is asserted if:
+            //  -> the entry of the RF is equal to the constraint set by the programmer
+            //  AND
+            //  -> the bits set in condition_mask of the AGE are also set in the end condition entry in the related RF, which means that the loop IVs that we want to be zero are zero
+            is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = (hwlp_rf_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd1][iv_constraints_sel_i[i*N_AGE_PER_STREAM+j]] == 0) &&
+                                                                 (~|(condition_mask[i][j] & ~(hwlp_end_condition_i[hwlp_sel_i[i*N_AGE_PER_STREAM+j]-4'd1])));        
+%endif
           end else begin
             is_pea_acc_constraint_valid[i*N_AGE_PER_STREAM+j] = 1'b0;
           end
@@ -161,20 +178,24 @@ module hwlp_rou
            -> by the repective entry of the HWLP RF until the first reset 
            -> by the respective is_pea_acc_constraint_valid signal, that is asserted when the constraint is valid for the PE reset
         */
+%if format_part == 1:
         case (reg_acc_vec_mode_i)
           2'b00: begin
-            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-2] : is_pea_acc_constraint_valid[i];
+            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-4'd2] : is_pea_acc_constraint_valid[i];
           end
           2'b01: begin
-            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-5] : is_pea_acc_constraint_valid[i];
+            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-4'd5] : is_pea_acc_constraint_valid[i];
           end
           2'b10: begin
-            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-4] : is_pea_acc_constraint_valid[i];
+            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-4'd4] : is_pea_acc_constraint_valid[i];
           end
           default: begin
-            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-2] : is_pea_acc_constraint_valid[i];
+            pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-4'd2] : is_pea_acc_constraint_valid[i];
           end
         endcase
+%else:
+        pea_acc_reset_o[i] = (init_acc_done == 1'b0) ? hwlp_valid_i[hwlp_sel_i[i]-4'd1] : is_pea_acc_constraint_valid[i];
+%endif
       end else begin
         pea_acc_reset_o[i] = '0;
       end

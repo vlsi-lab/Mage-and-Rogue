@@ -32,7 +32,9 @@ module pe_dae
   // configuration signals
   logic      [LOG_N_INPUTS_PE-1:0] mux_a_sel;
   logic      [LOG_N_INPUTS_PE-1:0] mux_b_sel;
+%if format_part == 1:
   logic      [                1:0] vec_mode;
+%endif
   fu_instr_t                       fu_instr;
 %if activation_computation == 1:
   delay_pe_mux_sel_t                          delay_pe_mux_sel;
@@ -48,7 +50,6 @@ module pe_dae
 %if activation_computation == 1:
     logic                                       multi_op_instr;
 %endif
-    logic                 [         N_BITS-1:0] fu_out;
 
   ////////////////////////////////
   //     Clock-gating cell      //
@@ -75,7 +76,7 @@ module pe_dae
   //      PE Configuration      //
   ////////////////////////////////
   assign mux_a_sel = pe_mux_sel_t'(ctrl_pe_i[OP_A_SEL_MSB : OP_A_SEL_LSB]);
-  assign mux_b_sel = pe_mux_sel_t'(ctrl_pe_i[OP_B_SEL_MSB : OP_V_SEL_LSB]);
+  assign mux_b_sel = pe_mux_sel_t'(ctrl_pe_i[OP_B_SEL_MSB : OP_B_SEL_LSB]);
   assign fu_instr  = fu_instr_t'(ctrl_pe_i[INSTR_SEL_MSB : INSTR_SEL_LSB]);
 %if format_part == 1:
   assign vec_mode  = ctrl_pe_i[VEC_MODE_MSB : VEC_MODE_LSB];
@@ -88,8 +89,8 @@ module pe_dae
   ////////////////////////////////
   //        PE Operands         //
   ////////////////////////////////
-  assign op_a = pe_op_i[mux_sel_a];
-  assign op_b = pe_op_i[mux_sel_b];
+  assign op_a = pe_op_i[mux_a_sel];
+  assign op_b = pe_op_i[mux_b_sel];
 
 %if activation_computation == 1:
   ////////////////////////////////
@@ -186,8 +187,6 @@ module pe_dae
 %if gemm_computation == 1:
   %if format_full == 1:
     fu_dae_full_gemm fu_dae_full_gemm_i  (
-        .clk_i(clk_cg),
-        .rst_n_i(rst_n_i),
         .a_i(op_a),
         .b_i(op_b),
         .acc_match_i(acc_match_i),
@@ -197,7 +196,7 @@ module pe_dae
     );
   %elif format_part == 1:
     fu_dae_part_gemm fu_dae_part_gemm_i (
-        .clk_i(clk_i),
+        .clk_i(clk_cg),
         .rst_n_i(rst_n_i),
         .a_i(op_a),
         .b_i(op_b),
@@ -226,7 +225,7 @@ module pe_dae
   ////////////////////////////////
   //         PE Outputs         //
   ////////////////////////////////
-  always_ff @(posedge clk_i, negedge rst_n_i) begin
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
       pe_res_o <= 0;
     end else begin

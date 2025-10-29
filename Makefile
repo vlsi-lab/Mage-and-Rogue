@@ -7,7 +7,7 @@ MAGE_CORE = vlsi:polito:mage-stream
 MAGE_CFG_HJSON ?= config/cfg_s_4x4_pipediv.hjson
 
 ### Regtool ###
-REGTOOL_SCRIPT = util/regtool.py
+REGTOOL_SCRIPT = /home/alessio.naclerio/polheepo/hw/vendor/x-heep/hw/vendor/pulp_platform_register_interface/vendor/lowrisc_opentitan/util/regtool.py
 REGTOOL_DEST_DIR = ./hw/mage/configuration
 REGTOOL_SRC_FILE = ./hw/mage/configuration/mage_regs.hjson
 REGTOOL_SW_DEST_DIR = ./sw
@@ -26,7 +26,8 @@ mage-gen:
 	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/execute/pe/dae --tpl-sv hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv.tpl 
 	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/packages --tpl-sv hw/mage/packages/agu_pkg.sv.tpl 
 	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/packages --tpl-sv hw/mage/packages/xbar_pkg.sv.tpl 
-	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/access --tpl-sv hw/mage/access/age.sv.tpl 
+	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/access --tpl-sv hw/mage/access/age.sv.tpl  
+	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/access --tpl-sv hw/mage/access/hwlp_rou.sv.tpl 
 	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/packages --tpl-sv hw/mage/packages/pea_pkg.sv.tpl 
 	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/configuration --tpl-sv hw/mage/configuration/peripheral_regs.sv.tpl 
 	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw --tpl-sv hw/mage_top.sv.tpl 

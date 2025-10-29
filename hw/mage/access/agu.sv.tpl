@@ -14,7 +14,9 @@ module agu
     input logic clk_i,
     input logic rst_n_i,
     input logic start_i,
+%if format_part == 1:
     input logic [1:0] reg_acc_vec_mode_i,
+%endif  
     ////////////////////////////////////////////////////////////////
     //                Hardware Loops Configuration                //
     ////////////////////////////////////////////////////////////////
@@ -30,7 +32,7 @@ module agu
     ////////////////////////////////////////////////////////////////
     //                Re-Order Unit Configuration                 //
     ////////////////////////////////////////////////////////////////
-    input logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_LP_IV-1:0] reg_age_strides_i,
+    input logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] reg_age_strides_i,
     ////////////////////////////////////////////////////////////////
     //                   Streams Configuration                    //
     ////////////////////////////////////////////////////////////////
@@ -79,7 +81,7 @@ module agu
   logic [N_AGE_TOT-1:0][NBIT_START_BANK-1:0] age_start_banks;
   logic [N_AGE_TOT-1:0][NBIT_BLOCK_SIZE-1:0] age_block_size;
   logic [N_AGE_TOT-1:0] age_stream_lns;
-  logic [N_AGE_TOT-1:0] age_stream_lns;
+  logic [N_AGE_TOT-1:0] age_is_acc_store;
   ////////////////////////////////////////////////////////////////
   //                        HWLP Outputs                        //
   ////////////////////////////////////////////////////////////////
@@ -91,7 +93,7 @@ module agu
   ////////////////////////////////////////////////////////////////
   logic [HWLP_RF_SIZE-1:0] hwlp_rf_valid;
   logic [HWLP_RF_SIZE-1:0][N_LP-1:0][NBIT_LP_IV-1:0] hwlp_rf;
-  logic [N_LP-1:0] hwlp_rf_end_condition;
+  logic [HWLP_RF_SIZE-1:0][N_LP-1:0] hwlp_rf_end_condition;
   ////////////////////////////////////////////////////////////////
   //                      HWLP ROU Outputs                      //
   ////////////////////////////////////////////////////////////////
@@ -106,10 +108,9 @@ module agu
   //                     Start/End Signals                      //
   ////////////////////////////////////////////////////////////////
   logic hwlp_end_lp;
-  logic hwlp_end_lp_set;
   logic [HWLP_RF_SIZE-1:0] hwlp_rf_end_lp;
   logic [N_AGE_TOT-1:0] hwlp_rou_end_lp;
-  logic [N_AGE_TOT-1:0] stream_active;
+  logic [N_AGE_TOT-1:0] age_end_lp;
 
   //agu cfgmem controller
   k_controller k_controller_inst (
@@ -124,17 +125,7 @@ module agu
       .start_d_o(start_d_o)
   );
 
-  assign end_lp_o = hwlp_end_lp_set & (&(~stream_active));
-
-  always_ff @(posedge clk_i or negedge rst_n_i) begin
-    if(!rst_n_i) begin
-      hwlp_end_lp_set <= 1'b0;
-    end else begin
-      if(hwlp_end_lp) begin
-        hwlp_end_lp_set <= 1'b1;
-      end
-    end
-  end
+  assign end_lp_o = (age_end_lp == age_is_age_active);
 
   //hwlp module
   hwlp hwlp_inst (
@@ -178,7 +169,9 @@ module agu
       .iv_constraints_sel_i(rou_iv_constraints_sel),
       .hwlp_valid_i(hwlp_rf_valid),
       .is_acc_store_rou_i(rou_is_acc_store),
+%if format_part == 1:
       .reg_acc_vec_mode_i(reg_acc_vec_mode_i),
+%endif      
       .stream_valid_o(rou_to_age_stream_valid),
       .pea_acc_reset_o(rou_to_age_pea_acc_reset),
       .hwlp_rou_o(rou_to_age_hwlp),
@@ -191,6 +184,7 @@ module agu
     .rst_n_i(rst_n_i),
     .start_i(start_i),
     .end_lp_i(hwlp_rou_end_lp),
+    .end_lp_o(age_end_lp),
     .age_strides_i(reg_age_strides_i),
     .rou_i(rou_to_age_hwlp),
     .pea_acc_reset_i(rou_to_age_pea_acc_reset),
@@ -200,15 +194,15 @@ module agu
     .n_banks_i(age_n_banks),
     .start_banks_i(age_start_banks),
     .block_size_i(age_block_size),
-    .is_acc_store_i(age_stream_lns),
+    .is_acc_store_i(age_is_acc_store),
     .stream_lns_i(age_stream_lns),
     .stream_addr_o(agu_addr_o),
     .stream_bank_o(agu_bank_o),
     .stream_bank_ls_o(agu_bank_ls_o),
     .stream_pea_acc_reset_o(age_pea_acc_reset),
     .stream_valid_o(agu_valid_o),
-    .stream_lns_o(agu_lns_o),
-    .stream_active_o(stream_active)
+    .stream_valid_ls_o(agu_valid_ls_o),
+    .stream_lns_o(agu_lns_o)
 );
 
   assign agu_pea_acc_reset_o = |age_pea_acc_reset;
@@ -226,8 +220,6 @@ module agu
 
   //cfg_dispatcher module
   cfg_dispatcher cfg_dispatcher_inst (
-      .clk_i(clk_i),
-      .rst_n_i(rst_n_i),
 % if kernel_len != 1:
       .cfgmem_addr_i(cfgmem_addr),
 % endif
@@ -245,7 +237,7 @@ module agu
       .age_start_banks_o(age_start_banks),
       .age_block_size_o(age_block_size),
       .age_stream_lns_o(age_stream_lns),
-      .age_is_acc_store_o(age_stream_lns)
+      .age_is_acc_store_o(age_is_acc_store)
   );
 
 endmodule : agu

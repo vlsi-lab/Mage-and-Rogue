@@ -80,7 +80,7 @@ package pea_pkg;
 %if streaming_cgra == 1:
   localparam unsigned N_INPUTS_PE = ${n_pe_in_stream + n_neigh_pe + 4};
 %elif dae_cgra == 1:
-  localparam unsigned N_INPUTS_PE = ${n_neigh_pe + n_pe_in_mem + 4};
+  localparam unsigned N_INPUTS_PE = ${n_neigh_pe + n_pe_in_mem + 1};
 %endif
   localparam unsigned LOG_N_INPUTS_PE = (N_INPUTS_PE == 1) ? 1 : $clog2(N_INPUTS_PE);
   
@@ -89,38 +89,38 @@ package pea_pkg;
   ////////////////////////////////
   localparam unsigned OP_A_SEL_LSB       = 0;
   localparam unsigned OP_A_SEL_MSB       = LOG_N_INPUTS_PE - 1;
-  localparam unsigned OP_B_SEL_LSB       = OP_A_SEL_MSB;
+  localparam unsigned OP_B_SEL_LSB       = OP_A_SEL_MSB + 1;
   localparam unsigned OP_B_SEL_MSB       = OP_B_SEL_LSB + LOG_N_INPUTS_PE - 1;
-  localparam unsigned INSTR_SEL_LSB      = OP_B_SEL_MSB;
+  localparam unsigned INSTR_SEL_LSB      = OP_B_SEL_MSB + 1;
   localparam unsigned INSTR_SEL_MSB      = INSTR_SEL_LSB + LOG_N_OPERATIONS - 1;
   
   %if format_part == 1:
-    localparam unsigned VEC_MODE_SEL_LSB   = INSTR_SEL_MSB;
+    localparam unsigned VEC_MODE_SEL_LSB   = INSTR_SEL_MSB + 1;
     localparam unsigned VEC_MODE_SEL_MSB   = VEC_MODE_SEL_MSB + 2 - 1;
   %endif
   
   %if streaming_cgra == 1 and format_part == 1:
-    localparam unsigned RF_SEL_LSB         = VEC_MODE_SEL_MSB;
+    localparam unsigned RF_SEL_LSB         = VEC_MODE_SEL_MSB + 1;
     localparam unsigned RF_SEL_MSB         = RF_SEL_LSB + RF_CFG_BITS - 1;
   %elif streaming_cgra == 1:
-    localparam unsigned RF_SEL_LSB         = INSTR_SEL_MSB;
+    localparam unsigned RF_SEL_LSB         = INSTR_SEL_MSB + 1;
     localparam unsigned RF_SEL_MSB         = RF_SEL_LSB + RF_CFG_BITS - 1;
   %endif
   
   %if activation_computation == 1 and streaming_cgra == 1:
-    localparam unsigned DELAY_PE_SEL_LSB    = RF_SEL_MSB;
+    localparam unsigned DELAY_PE_SEL_LSB    = RF_SEL_MSB + 1;
     localparam unsigned DELAY_PE_SEL_MSB    = INSTR_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
-    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB;
+    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
   %elif activation_computation == 1 and format_part == 1:
-    localparam unsigned DELAY_PE_SEL_LSB    = VEC_MODE_SEL_MSB;
+    localparam unsigned DELAY_PE_SEL_LSB    = VEC_MODE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_SEL_MSB    = INSTR_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
-    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB;
+    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
   %elif activation_computation == 1:
-    localparam unsigned DELAY_PE_SEL_LSB    = INSTR_SEL_MSB;
+    localparam unsigned DELAY_PE_SEL_LSB    = INSTR_SEL_MSB + 1;
     localparam unsigned DELAY_PE_SEL_MSB    = INSTR_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
-    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB;
+    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
   %endif
 
@@ -173,7 +173,7 @@ package pea_pkg;
     CLSHSUB   = 5'b11011
   } fu_instr_t;
 %elif gemm_computation == 1:
-  typedef enum logic[3:0]{
+  typedef enum logic[LOG_N_OPERATIONS-1:0]{
     NOP       = 5'b0000,
     MUL       = 5'b0001,
     SUB       = 5'b0010,
@@ -212,13 +212,17 @@ package pea_pkg;
   %for i in range(n_pe_in_mem):
     MEM_IN_${i} = 4'b${'{:04b}'.format(i+1)},
   %endfor
-    UP         = 4'b${'{:04b}'.format(n_pe_in_stream+1)},
-    LEFT       = 4'b${'{:04b}'.format(n_pe_in_stream+2)},
-    RIGHT      = 4'b${'{:04b}'.format(n_pe_in_stream+3)},
-    DOWN       = 4'b${'{:04b}'.format(n_pe_in_stream+4)},
-    SELF       = 4'b${'{:04b}'.format(n_pe_in_stream+5)},
+    UP         = 4'b${'{:04b}'.format(n_pe_in_mem+1)},
+    LEFT       = 4'b${'{:04b}'.format(n_pe_in_mem+2)},
+    RIGHT      = 4'b${'{:04b}'.format(n_pe_in_mem+3)},
+    DOWN       = 4'b${'{:04b}'.format(n_pe_in_mem+4)},
 %if activation_computation == 1:
-    DELAY_OP   = 4'b${'{:04b}'.format(n_pe_in_stream+6)}
+    SELF       = 4'b${'{:04b}'.format(n_pe_in_mem+5)},
+%else:
+    SELF       = 4'b${'{:04b}'.format(n_pe_in_mem+5)}
+%endif
+%if activation_computation == 1:
+    DELAY_OP   = 4'b${'{:04b}'.format(n_pe_in_mem+6)}
 %endif
 %endif
   }pe_mux_sel_t;

@@ -143,13 +143,13 @@ package agu_pkg;
   localparam unsigned N_BANKS_LSB = IV_CONSTR_MSB + 1; 
 
   localparam unsigned BANK_START_MSB = BANK_START_LSB + NBIT_START_BANK - 1;
-  localparam unsigned BANK_START_LSB = BANK_START_MSB + 1; 
+  localparam unsigned BANK_START_LSB = N_BANKS_MSB + 1; 
 
   localparam unsigned BLOCK_SIZE_MSB = BLOCK_SIZE_LSB + NBIT_BLOCK_SIZE - 1;
   localparam unsigned BLOCK_SIZE_LSB = BANK_START_MSB + 1; 
 
   localparam unsigned LNS_MSB = LNS_LSB + 1 - 1;
-  localparam unsigned LNS_LSB = BLOCK_SIZE_LSB + 1;
+  localparam unsigned LNS_LSB = BLOCK_SIZE_MSB + 1;
 
   localparam unsigned IS_ACC_STORE_MSB = IS_ACC_STORE_LSB + 1 - 1;
   localparam unsigned IS_ACC_STORE_LSB = LNS_MSB + 1; 
@@ -161,6 +161,8 @@ package agu_pkg;
   localparam unsigned IV_CONSTRAINT_LSB = IV_CONST_MSB + 1; 
 
   localparam unsigned VALID_MSB = VALID_LSB + 1 - 1;
-  localparam unsigned VALID_LSB = IV_CONSTRAINT_MSB + 1;    
+  localparam unsigned VALID_LSB = IV_CONSTRAINT_MSB + 1;   
+
+  localparam unsigned NBIT_CFG_STREAM_WORD = VALID_MSB + 1;
 
 endpackage : agu_pkg

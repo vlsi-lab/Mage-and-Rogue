@@ -120,7 +120,6 @@ module mage_wrapper
       .clk_i,
       .rst_n_i,
       .state_i(state),
-      .reg_block_size_i(reg_block_size),
       .agu_dmem_req_i(agu_dmem_req),
       .agu_dmem_we_i(agu_dmem_we),
       .agu_dmem_valid_i(agu_dmem_valid),

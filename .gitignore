@@ -21,6 +21,7 @@ vivado.log
 /hw/mage_wrapper.sv 
 /hw/mage/configuration/mage_regs.hjson
 /hw/mage/access/agu.sv
+/hw/mage/access/hwlp_rou.sv
 /hw/mage/access/cfg_dispatcher.sv
 /hw/mage/access/k_controller.sv
 /sw/mage.h

@@ -10,8 +10,6 @@
 module cfg_dispatcher
   import agu_pkg::*;
 (
-    input logic clk_i,
-    input logic rst_n_i,
 % if kernel_len != 1:
     input logic [LOG2_ACC_CFGMEM_SIZE-1:0] cfgmem_addr_i,
 % endif
@@ -22,8 +20,7 @@ module cfg_dispatcher
     output logic [N_AGE_TOT-1:0][LOG2_N_LP-1+1:0]       rou_iv_constraint_sel_o,
     output logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0]        rou_iv_constraint_o,
     output logic [N_AGE_TOT-1:0]                        rou_is_acc_store_rou_o,
-    // AGE
-    output logic [N_AGE_TOT-1:0][NBIT_LP_IV-1+1:0]    age_iv_constrain_o,
+    // AGE,
     output logic [N_AGE_TOT-1:0]                      age_is_age_active_o,
     output logic [N_AGE_TOT-1:0][NBIT_LP_IV-1:0]      age_const_iv_o,
     output logic [N_AGE_TOT-1:0][NBIT_N_BANKS-1:0]    age_n_banks_o,
@@ -80,7 +77,7 @@ module cfg_dispatcher
   // Outputs to AGU exiting the dispatcher without going through registers
   always_comb begin
     for (int i = 0; i < N_AGE_TOT; i = i + 1) begin
-      is_acc_store_o[i]      = stream_inst[i].is_acc_store;
+      age_is_acc_store_o[i]      = stream_inst[i].is_acc_store;
       age_n_banks_o[i]       = stream_inst[i].n_banks;
       age_start_banks_o[i]   = stream_inst[i].bank_start;
       age_block_size_o[i]    = stream_inst[i].block_size;
