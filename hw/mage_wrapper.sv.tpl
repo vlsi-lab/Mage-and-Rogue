@@ -47,7 +47,6 @@ module mage_wrapper
   ////////////////////////////////////////////////////////////////
   logic   [            N_BANKS-1:0]                        agu_dmem_req;
   logic   [            N_BANKS-1:0]                        agu_dmem_we;
-  logic   [            N_BANKS-1:0]                        agu_dmem_valid;
   logic   [            N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] agu_dmem_addr;
   logic   [            N_BANKS-1:0][           N_BITS-1:0] agu_dmem_wdata;
   logic   [            N_BANKS-1:0][           N_BITS-1:0] agu_dmem_rdata;
@@ -87,7 +86,6 @@ module mage_wrapper
       .state_o(state),
       .dmem_req_o(agu_dmem_req),
       .dmem_we_o(agu_dmem_we),
-      .dmem_valid_o(agu_dmem_valid),
       .dmem_addr_o(agu_dmem_addr),
       .dmem_wdata_o(agu_dmem_wdata),
       .dmem_rdata_i(agu_dmem_rdata),
@@ -122,7 +120,6 @@ module mage_wrapper
       .state_i(state),
       .agu_dmem_req_i(agu_dmem_req),
       .agu_dmem_we_i(agu_dmem_we),
-      .agu_dmem_valid_i(agu_dmem_valid),
       .agu_dmem_addr_i(agu_dmem_addr),
       .agu_dmem_wdata_i(agu_dmem_wdata),
       .ext_dmem_req_i(ext_dmem_req),

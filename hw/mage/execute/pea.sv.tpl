@@ -6,27 +6,30 @@
 // Author: Alessio Naclerio
 // Date: 26/02/2025
 // Description: Processing Element Array
-
+<%import math as m%>
 module pea
   import pea_pkg::*;
 %if streaming_cgra == 1:
   import stream_intf_pkg::*;
 %endif
 (
-    input  logic                                                  clk_i,
-    input  logic                                                  rst_n_i,
+    input  logic                                                    clk_i,
+    input  logic                                                    rst_n_i,
 %if dae_cgra == 1:
     ////////////////////////////////
     //   DAE Interface for PEA    //
     ////////////////////////////////
+    input logic                                                     start_d_i,
     // Accumulation end signal from AGU
-    input  logic                                                  acc_match_i,
+    input  logic [N_IN_PEA/2-1:0]                                   acc_match_i,
+    // input data valid
+    input logic [N_IN_PEA-1:0]                                      in_data_valid_i,
     // Input data from internal SpM
-    input  logic   [ N_IN_PEA-1:0][N_BITS-1:0]                    pea_data_i,
+    input  logic   [N_IN_PEA-1:0][N_BITS-1:0]                       pea_data_i,
     // Selection of PEA outputs for each row
-    input  logic   [N_OUT_PEA-1:0][ LOG_M-1:0]                    sel_output_i,
+    input  logic   [N_OUT_PEA-1:0][ ${max(m.log(n_pea_cols), 2)}-1:0]                      sel_output_i,
     // PEA output data
-    output logic   [N_OUT_PEA-1:0][N_BITS-1:0]                    pea_data_o,
+    output logic   [N_OUT_PEA-1:0][N_BITS-1:0]                      pea_data_o,
 %endif
 %if streaming_cgra == 1:
     ////////////////////////////////
@@ -48,9 +51,9 @@ module pea
     input logic [M-1:0]                                            stream_intf_ready_i,
 %endif
     // Instruction word
-    input  logic   [        N-1:0][     M-1:0][N_CFG_BITS_PE-1:0] ctrl_pea_i,
+    input  logic   [        N-1:0][     M-1:0][N_CFG_BITS_PE-1:0]   ctrl_pea_i,
     // Constant from configuration registers
-    input  logic   [        N-1:0][     M-1:0][             31:0] reg_constant_op_i
+    input  logic   [        N-1:0][     M-1:0][             31:0]   reg_constant_op_i
 );
   
   ////////////////////////////////
@@ -72,6 +75,7 @@ module pea
   ////////////////////////////////
   //    DAE: I/O of PEA Rows    //
   ////////////////////////////////
+  logic   [ N_IN_PEA-1:0][N_BITS-1:0] in_data_pea;
   %for r in range(n_pea_rows):
   logic [          M-1:0][N_BITS-1:0] out_data_row${r};  
   %endfor
@@ -150,7 +154,6 @@ logic out_delay_op_valid${r}${c};
 %endfor
 %endif
 
-%if streaming_cgra == 1:
   ////////////////////////////////
   // Streaming: Input Registers //
   ////////////////////////////////
@@ -176,13 +179,14 @@ logic out_delay_op_valid${r}${c};
   %endfor
 %endif
 %if dae_cgra == 1:
-      if (start_d_i == 1'b1) begin
-        in_data_pea <= pea_data_i;
+      for (int i = 0; i < N_IN_PEA; i++) begin
+        if (start_d_i && in_data_valid_i[i]) begin
+            in_data_pea[i] <= pea_data_i[i];
+        end
       end
 %endif
     end
   end
-%endif
 
 %if dae_cgra == 1:
   ////////////////////////////////
@@ -214,13 +218,9 @@ logic out_delay_op_valid${r}${c};
 %endif
 
 %if dae_cgra == 1:
-  %for r in range(2*n_pea_rows):
-    %if r % 2 == 0:
-  assign pea_data_o[${int(r/2)}] = out_data_row${int(r/2)}[sel_output_i[${r}]]; 
-    %else:
-  assign pea_data_o[${n_pea_rows+int(r/2)}] = out_data_row${int(r/2)}[sel_output_i[${r}]];
-    %endif
-  %endfor
+%for s in range(n_age_tot):
+    assign pea_data_o[${(s)}] = out_data_row${(s)%n_pea_rows}[sel_output_i[${(s)}]]; 
+%endfor
 %endif
 %if streaming_cgra == 1:
   %for c in range(n_pea_cols):
@@ -267,19 +267,13 @@ logic out_delay_op_valid${r}${c};
   %for r in range(n_pea_rows):
     %for c in range(n_pea_cols):
   assign in_data_pe${r}${c}[CONSTANT] = reg_constant_op_i[${r}][${c}]; <% k = 1 %> <% pe = 0 %>
-      %for n in range(n_pe_in_mem):
-        %for i in range(len(pea_in_mem_placement)):
-          %for j in range(len(pea_in_mem_placement[i])):
-            % if i == r and j == n:
-              %if pea_in_mem_placement[i][j] != None:
-  assign in_data_pe${r}${c}[MEM_IN_${j}] = pea_data_i[${pea_in_mem_placement[i][j]}]; <% k = k + 1 %>
-              %else:
-  assign in_data_pe${r}${c}[MEM_IN_${j}] = '0; <% k = k + 1 %>
-              %endif       
-            %endif
-          %endfor
-        %endfor
-      %endfor       
+        %for i in range(len(pea_in_mem_placement[r])):
+          %if pea_in_mem_placement[r][i] == "None":
+  assign in_data_pe${r}${c}[MEM_IN_${i}] = '0; <% k = k + 1 %>
+          %else:
+  assign in_data_pe${r}${c}[MEM_IN_${i}] = in_data_pea[${pea_in_mem_placement[r][i]}]; <% k = k + 1 %>      
+          %endif
+        %endfor    
       %for r1 in range(r-1,r+2,1):
         %for c1 in range(c-1,c+2,1):
           %if (r1 == r or c1 == c) and (not(r1 == r and c1 == c)): #this defines noc
@@ -442,16 +436,17 @@ logic out_delay_op_valid${r}${c};
   %for r in range(n_pea_rows):
     %for c in range(n_pea_cols):
       %if (int(r) * int(n_pea_cols) + int(c)) in acc_pes:
-  pe_dae_part_demm_acc pe_dae_part_demm_acc_${r}${c} (
-      .acc_match_i(acc_match_i),
+  pe_dae_part_gemm_acc pe_dae_part_gemm_acc_${r}${c} (
+      .acc_match_i(acc_match_i[${r}]),
       %else:
   pe_dae pe_dae_${r}${c} (
       %endif
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
+      .start_d_i(start_d_i),
       .pe_op_i(in_data_pe${r}${c}),
       %if format_full == 1:
-      .acc_match_i(acc_match_i),
+      .acc_match_i(acc_match_i[${r}]),
       %endif
       %if activation_computation == 1:
       .neigh_delay_op_i(in_delay_op${r}${c}),

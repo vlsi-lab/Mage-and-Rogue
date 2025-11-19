@@ -324,7 +324,7 @@ void mage_set_sel_out_pea_reg(uint32_t sel_out_pea, uint32_t reg){
  * @param load_stream The Load Stream.
  */
 void mage_set_load_stream(uint32_t load_stream[LOAD_STREAM_SIZE]){
-  int32_t *mage_load_stream_idx = (int32_t *)(MAGE_LOAD_STREAM_START_ADDR);
+  int32_t *mage_load_stream_idx = (int32_t *)(MAGE_LOAD_AGE_SEL_ADDR);
   for(int i = 0; i < LOAD_STREAM_SIZE; i++){
     *mage_load_stream_idx = load_stream[i];
     mage_load_stream_idx++;
@@ -338,7 +338,7 @@ void mage_set_load_stream(uint32_t load_stream[LOAD_STREAM_SIZE]){
  * @param reg The register index.
  */
 void mage_set_load_stream_reg(uint32_t load_stream, uint32_t reg){
-  int32_t *mage_load_stream_idx = (int32_t *)(MAGE_LOAD_STREAM_START_ADDR);
+  int32_t *mage_load_stream_idx = (int32_t *)(MAGE_LOAD_AGE_SEL_ADDR);
   mage_load_stream_idx += reg;
   *mage_load_stream_idx = load_stream;
 }
@@ -349,7 +349,7 @@ void mage_set_load_stream_reg(uint32_t load_stream, uint32_t reg){
  * @param store_stream The Store Stream.
  */
 void mage_set_store_stream(uint32_t store_stream[STORE_STREAM_SIZE]){
-  int32_t *mage_store_stream_idx = (int32_t *)(MAGE_STORE_STREAM_START_ADDR);
+  int32_t *mage_store_stream_idx = (int32_t *)(MAGE_PEA_DMEM_SEL_ADDR);
   for(int i = 0; i < LOAD_STREAM_SIZE; i++){
     *mage_store_stream_idx = store_stream[i];
     mage_store_stream_idx++;
@@ -363,7 +363,7 @@ void mage_set_store_stream(uint32_t store_stream[STORE_STREAM_SIZE]){
  * @param reg The register index.
  */
 void mage_set_store_stream_reg(uint32_t store_stream, uint32_t reg){
-  int32_t *mage_store_stream_idx = (int32_t *)(MAGE_LOAD_STREAM_START_ADDR);
+  int32_t *mage_store_stream_idx = (int32_t *)(MAGE_LOAD_AGE_SEL_ADDR);
   mage_store_stream_idx += reg;
   *mage_store_stream_idx = store_stream;
 }

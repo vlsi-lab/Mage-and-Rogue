@@ -62,7 +62,7 @@ package agu_pkg;
   //Number of bits required to represent N_BANKS_PER_STREAM
   localparam unsigned LOG_N_BANKS_PER_STREAM = (N_BANKS_PER_STREAM == 1) ? 1 : $clog2(N_BANKS_PER_STREAM);
   //Total number of banks
-  localparam unsigned N_BANKS = N_STREAMS * N_BANKS_PER_STREAM;
+  localparam unsigned N_BANKS = N_AGE_TOT;
   //number of bank groups
   localparam unsigned N_BANKS_GROUP = N_STREAMS;
   //Number of bits required to represent the address of a bank
@@ -136,32 +136,32 @@ package agu_pkg;
   localparam unsigned HWLP_RF_MSB = LOG2_HWLP_RF_SIZE - 1;
   localparam unsigned HWLP_RF_LSB = 0; 
 
-  localparam unsigned IV_CONSTR_MSB = IV_CONSTR_LSB + LOG2_N_LP;
   localparam unsigned IV_CONSTR_LSB = HWLP_RF_MSB + 1; 
+  localparam unsigned IV_CONSTR_MSB = IV_CONSTR_LSB + LOG2_N_LP;
 
-  localparam unsigned N_BANKS_MSB = N_BANKS_LSB + NBIT_N_BANKS - 1;
   localparam unsigned N_BANKS_LSB = IV_CONSTR_MSB + 1; 
+  localparam unsigned N_BANKS_MSB = N_BANKS_LSB + NBIT_N_BANKS - 1;
 
-  localparam unsigned BANK_START_MSB = BANK_START_LSB + NBIT_START_BANK - 1;
   localparam unsigned BANK_START_LSB = N_BANKS_MSB + 1; 
+  localparam unsigned BANK_START_MSB = BANK_START_LSB + NBIT_START_BANK - 1;
 
-  localparam unsigned BLOCK_SIZE_MSB = BLOCK_SIZE_LSB + NBIT_BLOCK_SIZE - 1;
   localparam unsigned BLOCK_SIZE_LSB = BANK_START_MSB + 1; 
+  localparam unsigned BLOCK_SIZE_MSB = BLOCK_SIZE_LSB + NBIT_BLOCK_SIZE - 1;
 
-  localparam unsigned LNS_MSB = LNS_LSB + 1 - 1;
   localparam unsigned LNS_LSB = BLOCK_SIZE_MSB + 1;
+  localparam unsigned LNS_MSB = LNS_LSB + 1 - 1;
 
-  localparam unsigned IS_ACC_STORE_MSB = IS_ACC_STORE_LSB + 1 - 1;
   localparam unsigned IS_ACC_STORE_LSB = LNS_MSB + 1; 
+  localparam unsigned IS_ACC_STORE_MSB = IS_ACC_STORE_LSB + 1 - 1;
 
-  localparam unsigned IV_CONST_MSB = IV_CONST_LSB + NBIT_LP_IV - 1;
   localparam unsigned IV_CONST_LSB = IS_ACC_STORE_MSB + 1; 
+  localparam unsigned IV_CONST_MSB = IV_CONST_LSB + NBIT_LP_IV - 1;
 
-  localparam unsigned IV_CONSTRAINT_MSB = IV_CONSTRAINT_LSB + NBIT_LP_IV - 1;
   localparam unsigned IV_CONSTRAINT_LSB = IV_CONST_MSB + 1; 
+  localparam unsigned IV_CONSTRAINT_MSB = IV_CONSTRAINT_LSB + NBIT_LP_IV - 1;
 
-  localparam unsigned VALID_MSB = VALID_LSB + 1 - 1;
   localparam unsigned VALID_LSB = IV_CONSTRAINT_MSB + 1;   
+  localparam unsigned VALID_MSB = VALID_LSB + 1 - 1;
 
   localparam unsigned NBIT_CFG_STREAM_WORD = VALID_MSB + 1;
 

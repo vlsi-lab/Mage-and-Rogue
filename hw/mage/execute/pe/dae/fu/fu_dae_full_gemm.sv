@@ -121,14 +121,6 @@ module fu_dae_full_gemm
     shift_op2 = b_signed;
 
     case (instr_i)
-      NOP: begin
-        add_op1   = '0;
-        add_op2   = '0;
-        mul_op1   = '0;
-        mul_op2   = '0;
-        shift_op1 = '0;
-        shift_op2 = '0;
-      end
 
       ABS: begin
         add_op1 = {op1_neg, 1'b0};
@@ -138,6 +130,21 @@ module fu_dae_full_gemm
       SUB: begin
         add_op1 = {a_signed, 1'b1};
         add_op2 = {op2_neg, 1'b1};
+      end
+
+      ADD: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
+      end
+
+      ACC: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
+      end
+
+      MUL: begin
+        mul_op1 = a_signed;
+        mul_op2 = b_signed;
       end
 
       MIN: begin
@@ -164,12 +171,12 @@ module fu_dae_full_gemm
       end
 
       default: begin
-        add_op1   = {a_signed, 1'b0};
-        add_op2   = {b_signed, 1'b0};
-        mul_op1   = a_signed;
-        mul_op2   = b_signed;
-        shift_op1 = {{32{a_signed[N_BITS-1]}}, a_signed};
-        shift_op2 = b_signed;
+        add_op1   = '0;
+        add_op2   = '0;
+        mul_op1   = '0;
+        mul_op2   = '0;
+        shift_op1 = '0;
+        shift_op2 = '0;
       end
 
     endcase
@@ -188,6 +195,8 @@ module fu_dae_full_gemm
       LSH: res_o = lsh_res;
       ARSH: res_o = shift_res;
       LRSH: res_o = shift_res;
+      FW_A: res_o = a_i;
+      FW_B: res_o = b_i;
       ABS: res_o = a_signed[N_BITS-1] ? add_res[N_BITS:1] : a_signed;
       MAX:
       res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS-1] != a_signed[N_BITS-1]) ? b_signed : a_signed) :

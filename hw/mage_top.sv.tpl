@@ -6,7 +6,7 @@
 // Author: Alessio Naclerio
 // Date: 26/02/2025
 // Description: Top level entity of CGRA
-
+<%import math as m%>
 module mage_top
 %if dae_cgra == 1:
   import agu_pkg::*;
@@ -39,7 +39,6 @@ module mage_top
     /* Interface towards internal SpM */
     output logic     [N_BANKS-1:0]                        dmem_req_o,
     output logic     [N_BANKS-1:0]                        dmem_we_o,
-    output logic     [N_BANKS-1:0]                        dmem_valid_o,
     output logic     [N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] dmem_addr_o,
     output logic     [N_BANKS-1:0][           N_BITS-1:0] dmem_wdata_o,
     input  logic     [N_BANKS-1:0][           N_BITS-1:0] dmem_rdata_i,
@@ -70,21 +69,21 @@ module mage_top
   %endif
   loop_vars_t [N_LP-1:0] reg_loop_vars;
   logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] reg_age_strides;
+  logic [N_AGE_TOT-1:0][LOG2_HWLP_RF_SIZE-1:0] reg_age_acc_hwlp_sel;
   logic [ACC_CFGMEM_SIZE-1:0][N_AGE_TOT-1:0][NBIT_CFG_STREAM_WORD-1:0] reg_mage_cfgmem;
   ////////////////////////////////////////////////////////////////
   //                  Crossbars Configuration                   //
   ////////////////////////////////////////////////////////////////
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][KMEM_SIZE-1:0][LOG_N_AGE_PER_STREAM-1:0] reg_cfg_l_stream_sel;
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][KMEM_SIZE-1:0][LOG_N_PE_PER_GROUP-1:0] reg_cfg_s_stream_sel;
-  logic [N_OUT_PEA-1:0][KMEM_SIZE-1:0][LOG_M-1:0] reg_cfg_sel_out_pea;
+  logic [N_AGE_TOT-1:0][KMEM_SIZE-1:0][${max(m.log(n_age_per_stream), 2)}-1:0] reg_cfg_load_age_sel;
+  logic [N_AGE_TOT-1:0][KMEM_SIZE-1:0][${max(m.log(n_age_per_stream), 2)}-1:0] reg_cfg_pea_dmem_sel;
+  logic [N_OUT_PEA-1:0][KMEM_SIZE-1:0][${max(m.log(n_pea_cols),2)}-1:0] reg_cfg_sel_out_pea;
   ////////////////////////////////////////////////////////////////
   //                     Crossbars Signals                      //
   ////////////////////////////////////////////////////////////////
-  logic [N_OUT_PEA-1:0][LOG_M-1:0] cfg_sel_pea_output;
-  logic [N_PE_GROUP-1:0][N_PE_PER_GROUP-1:0][LOG_N_BANKS_PER_STREAM-1:0] cfg_sel_dmem_pea;
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][LOG_N_PE_PER_GROUP-1:0] cfg_sel_pea_dmem;
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][LOG_N_AGE_PER_STREAM-1:0] l_stream_sel;
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][LOG_N_PE_PER_GROUP-1:0] s_stream_sel;
+  logic [N_OUT_PEA-1:0][${max(m.log(n_pea_cols),2)}-1:0] cfg_sel_pea_output;
+  logic [N_AGE_TOT-1:0][${max(m.log(n_age_per_stream), 2)}-1:0] cfg_sel_dmem_pea;
+  logic [N_AGE_TOT-1:0][${max(m.log(n_age_per_stream), 2)}-1:0] load_age_sel;
+  logic [N_AGE_TOT-1:0][${max(m.log(n_age_per_stream), 2)}-1:0] pea_dmem_sel;
   ////////////////////////////////////////////////////////////////
   //             Reconfigurable Controllers and FSM             //
   ////////////////////////////////////////////////////////////////
@@ -99,39 +98,25 @@ module mage_top
   ////////////////////////////////////////////////////////////////
   //              Processing Element Array (PEA)                //
   ////////////////////////////////////////////////////////////////
-  logic [N_OUT_PEA-1:0][N_BITS-1:0] pea_outputs;
+  logic [N_IN_PEA-1:0][N_BITS-1:0] pea_outputs;
   logic [N_IN_PEA-1:0][N_BITS-1:0] pea_inputs;
   ////////////////////////////////////////////////////////////////
   //                            AGU                             //
   ////////////////////////////////////////////////////////////////
   logic start_d;
   logic end_lp;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_ADDR-1:0] agu_addr;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][N_BANKS_PER_STREAM-1:0] agu_bank;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] agu_bank_ls;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid_ls;
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_lns;
-  logic acc_match;
+  logic [N_AGE_TOT-1:0][NBIT_ADDR-1:0] agu_addr;
+  logic [N_AGE_TOT-1:0][N_BANKS_PER_STREAM-1:0] agu_bank;
+  logic [N_AGE_TOT-1:0][LOG_N_BANKS_PER_STREAM-1:0] agu_bank_ls;
+  logic [N_AGE_TOT-1:0] agu_valid;
+  logic [N_AGE_TOT-1:0] agu_valid_ls;
+  logic [N_AGE_TOT-1:0] agu_lns;
+  logic [N_AGE_TOT/2-1:0] agu_acc_match;
   ////////////////////////////////////////////////////////////////
   //          Crossbar between AGU and Multi-Bank SpM           //
   ////////////////////////////////////////////////////////////////
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0][NBIT_ADDR-1:0] agu_dmem_addr;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_bank;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_we;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_valid;
-  logic [N_STREAMS-1:0][N_BANKS_PER_STREAM-1:0] agu_dmem_valid_d;
-  ////////////////////////////////////////////////////////////////
-  //        Crossbar between Multi-Bank SpM and MAGE PEA        //
-  ////////////////////////////////////////////////////////////////
-  logic [N_PE_GROUP-1:0][N_PE_PER_GROUP-1:0][N_BITS-1:0] out_pea_in_xbar;
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][N_BITS-1:0] out_dmem_in_xbar;
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][N_BITS-1:0] in_pea_out_xbar;
-  logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][N_BITS-1:0] in_dmem_out_xbar;
-  //output of xbar banks-pea
-  logic [N_BANKS-1:0][N_BITS-1:0] banks_to_pea_xbar_out;
-  //input to xbar banks-pea
-  logic [N_BANKS-1:0][N_BITS-1:0] banks_to_pea_xbar_in;
+  logic [N_AGE_TOT-1:0] agu_dmem_valid;
+  logic [N_AGE_TOT-1:0] agu_dmem_valid_d;
 %endif
 %if streaming_cgra == 1:
   ////////////////////////////////////////////////////////////////
@@ -209,13 +194,14 @@ module mage_top
   %endif
       .reg_loop_vars_o(reg_loop_vars),
       .reg_age_strides_o(reg_age_strides),
+      .reg_age_acc_hwlp_sel_o(reg_age_acc_hwlp_sel),
       .reg_agu_cfgmem_o(reg_mage_cfgmem),
       ////////////////////////////////////////////////////////////////
       //                  Crossbars Configuration                   //
       ////////////////////////////////////////////////////////////////
       .reg_cfg_sel_out_pea_o(reg_cfg_sel_out_pea),
-      .reg_cfg_l_stream_sel_o(reg_cfg_l_stream_sel),
-      .reg_cfg_s_stream_sel_o(reg_cfg_s_stream_sel),
+      .reg_cfg_load_age_sel_o(reg_cfg_load_age_sel),
+      .reg_cfg_pea_dmem_sel_o(reg_cfg_pea_dmem_sel),
 %endif
 %if streaming_cgra == 1:
       .reg_cols_grouping_o(reg_cols_grouping),
@@ -259,19 +245,17 @@ module mage_top
 
 % if kernel_len != 1:
   cfg_regs_ls_stream_sel cfg_regs_ls_stream_sel_inst (
-      .reg_cfg_l_stream_sel_i(reg_cfg_l_stream_sel),
-      .reg_cfg_s_stream_sel_i(reg_cfg_s_stream_sel),
+      .reg_cfg_load_age_sel_i(reg_cfg_load_age_sel),
+      .reg_cfg_pea_dmem_sel_i(reg_cfg_pea_dmem_sel),
       .rcfg_ctrl_addr_i(actual_cfg_addr_xbar),
-      .l_stream_sel_o(l_stream_sel),
-      .s_stream_sel_o(s_stream_sel)
+      .load_age_sel_o(load_age_sel),
+      .pea_dmem_sel_o(pea_dmem_sel)
   );
 %else:
   always_comb begin
-    for (int i = 0; i < N_BANKS_GROUP; i++) begin
-      for (int j = 0; j < N_BANKS_PER_STREAM; j++) begin
-        l_stream_sel[i][j] = reg_cfg_l_stream_sel[i][j][0];
-        s_stream_sel[i][j] = reg_cfg_s_stream_sel[i][j][0];
-      end
+    for (int i = 0; i < N_AGE_TOT; i++) begin
+        load_age_sel[i] = reg_cfg_load_age_sel[i][0];
+        pea_dmem_sel[i] = reg_cfg_pea_dmem_sel[i][0];
     end
   end
 %endif
@@ -334,9 +318,11 @@ module mage_top
       .stream_intf_ready_i(stream_intf_ready),
 %endif
 %if dae_cgra == 1:
+      .start_d_i(start_d),
+      .in_data_valid_i(agu_dmem_valid_d),
       .sel_output_i(cfg_sel_pea_output),
       .pea_data_i(pea_inputs),
-      .acc_match_i(acc_match),
+      .acc_match_i(agu_acc_match),
       .pea_data_o(pea_outputs),
 %endif
       .reg_constant_op_i(reg_constant_op_pea)
@@ -350,7 +336,7 @@ module mage_top
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
       /* Start-End */
-      .start_i(reg_start),
+      .state_i(state),
       .start_d_o(start_d),
       .end_lp_o(end_lp),
       /* Configuration */
@@ -361,6 +347,7 @@ module mage_top
       .cfgmem_addr_d_o(cfg_addr),
 % endif
       .reg_age_strides_i(reg_age_strides),
+      .reg_age_acc_hwlp_sel_i(reg_age_acc_hwlp_sel),
       .reg_II_i(reg_II),
       .cfgmem_content_i(reg_mage_cfgmem),
 % if format_part == 1:
@@ -373,7 +360,7 @@ module mage_top
       .agu_valid_o(agu_valid),
       .agu_valid_ls_o(agu_valid_ls),
       .agu_lns_o(agu_lns),
-      .agu_pea_acc_reset_o(acc_match)
+      .agu_pea_acc_reset_o(agu_acc_match)
   );
 
 % if kernel_len != 1:
@@ -406,99 +393,157 @@ module mage_top
   //        Crossbar between Multi-Bank SpM and MAGE PEA        //
   ////////////////////////////////////////////////////////////////
 
-  always_comb begin
-    for (int i = 0; i < N_BANKS; i++) begin
-      banks_to_pea_xbar_in[i] = dmem_rdata_i[i];
-    end
-  end
+<% idx = 0%>
+%for s in range(n_streams):
+  %if n_age_per_stream_ds[s] == 1:
 
-  //constructing inputs to xbar pea-banks
-  always_comb begin
-    for (int i = 0; i < N_PE_GROUP; i++) begin
-      for (int j = 0; j < N_PE_PER_GROUP; j++) begin
-        out_pea_in_xbar[i][j] = pea_outputs[i*N_PE_PER_GROUP+j];
-      end
-    end
-    for (int i = 0; i < N_PE_GROUP; i++) begin
-      for (int j = 0; j < N_PE_PER_GROUP; j++) begin
-        out_dmem_in_xbar[i][j] = banks_to_pea_xbar_in[i*N_PE_PER_GROUP+j];
-      end
-    end
-  end
+  ////////////////////////////////////////
+  //        Stream ${s}: no Xbar        //
+  ////////////////////////////////////////
 
-  //assembling outputs of xbar pea-banks
-  always_comb begin
-    for (int i = 0; i < N_BANKS_GROUP; i++) begin
-      for (int j = 0; j < N_BANKS_PER_STREAM; j++) begin
-        pea_inputs[i*N_BANKS_PER_STREAM+j] = in_pea_out_xbar[i][j];
-      end
-    end
-    for (int i = 0; i < N_PE_GROUP; i++) begin
-      for (int j = 0; j < N_PE_PER_GROUP; j++) begin
-        banks_to_pea_xbar_out[i*N_PE_PER_GROUP+j] = in_dmem_out_xbar[i][j];
-      end
-    end
-  end
+  assign pea_inputs[${idx}] = dmem_rdata_i[${idx}];
+  assign dmem_wdata_o[${idx}] = pea_outputs[${idx}];
+  // assign cfg_sel_dmem_pea[${idx}] = '0;
 
-  always_comb begin
-    for (int i = 0; i < N_BANKS; i++) begin
-      dmem_wdata_o[i] = banks_to_pea_xbar_out[i];
-    end
-  end
+  <% idx += 1%>
+  %elif n_age_per_stream_ds[s] == 2:
 
-  genvar i;
-  generate
-    for (i = 0; i < N_PE_GROUP; i++) begin : gen_xbar_banks_pea_i
-      xbar_banks_pea xbar_banks_pea_i (
-          .out_pea_i(out_pea_in_xbar[i]),
-          .out_dmem_i(out_dmem_in_xbar[i]),
-          .sel_dmem_pea_i(cfg_sel_dmem_pea[i]),
-          .sel_pea_dmem_i(cfg_sel_pea_dmem[i]),
-          .in_pea_o(in_pea_out_xbar[i]),
-          .in_dmem_o(in_dmem_out_xbar[i])
-      );
-    end
-  endgenerate
+  ////////////////////////////////////////
+  //        Stream ${s}: Xbar 2x2       //
+  ////////////////////////////////////////
 
-  genvar m;
-  genvar n;
-  generate
-    for (m = 0; m < N_BANKS_GROUP; m++) begin : gen_ls_stream_o
-      for (n = 0; n < N_BANKS_PER_STREAM; n++) begin : gen_ls_stream_i
-          load_store_stream load_store_stream_inst (
-              .l_stream_sel_i(l_stream_sel[m][n]),
-              .s_stream_sel_i(s_stream_sel[m][n]),
-              .age_bank_i(agu_bank_ls[m]),
-              .valid_ls_i(agu_valid_ls[m]),
-              .valid_i(agu_valid[m]),
-              .sel_load_stream_o(cfg_sel_dmem_pea[m][n]),
-              .sel_store_stream_o(cfg_sel_pea_dmem[m][n])
-          );
-      end
-    end
-  endgenerate
+  xbar_pea_banks #(
+      .XBAR_SIZE(2)
+  ) xbar_pea_banks_2x2_stream_${s} (
+      .out_pea_i      ({pea_outputs[${idx+1}],          pea_outputs[${idx}]}),
+      .out_dmem_i     ({dmem_rdata_i[${idx+1}],         dmem_rdata_i[${idx}]}),
+      .sel_dmem_pea_i ({cfg_sel_dmem_pea[${idx+1}][0],  cfg_sel_dmem_pea[${idx}][0]}),
+      .sel_pea_dmem_i ({pea_dmem_sel[${idx+1}][0],      pea_dmem_sel[${idx}][0]}),
+      .in_pea_o       ({pea_inputs[${idx+1}],           pea_inputs[${idx}]}),
+      .in_dmem_o      ({dmem_wdata_o[${idx+1}],         dmem_wdata_o[${idx}]})
+  );
+
+  dmem_pea_select #(
+    .N_AGE(2)
+  ) dmem_pea_select_2x2_n0_stream_${s} (
+      .reg_load_age_sel_i(load_age_sel[${idx}][0]),
+      .age_bank_load_i   ({agu_bank_ls[${idx+1}][0], agu_bank_ls[${idx}][0]}),
+      .valid_ls_i        ({agu_valid_ls[${idx+1}], agu_valid_ls[${idx}]}),
+      .sel_load_stream_o (cfg_sel_dmem_pea[${idx}][0])
+  );
+
+  dmem_pea_select #(
+    .N_AGE(2)
+  ) dmem_pea_select_2x2_n1_stream_${s} (
+      .reg_load_age_sel_i(load_age_sel[${idx+1}][0]),
+      .age_bank_load_i   ({agu_bank_ls[${idx+1}][0], agu_bank_ls[${idx}][0]}),
+      .valid_ls_i        ({agu_valid_ls[${idx+1}], agu_valid_ls[${idx}]}),
+      .sel_load_stream_o (cfg_sel_dmem_pea[${idx+1}][0])
+  );
+
+  <% idx += 2%>
+  %elif n_age_per_stream_ds[s] == 4:
+
+  ////////////////////////////////////////
+  //        Stream ${s}: Xbar 4x4       //
+  ////////////////////////////////////////
+
+  xbar_pea_banks #(
+      .XBAR_SIZE(4)
+  )  xbar_pea_banks_4x4_stream_${s} (
+      .out_pea_i      ({pea_outputs[${idx+3}],      pea_outputs[${idx+2}],      pea_outputs[${idx+1}],      pea_outputs[${idx}]}),
+      .out_dmem_i     ({dmem_rdata_i[${idx+3}],     dmem_rdata_i[${idx+2}],     dmem_rdata_i[${idx+1}],     dmem_rdata_i[${idx}]}),
+      .sel_dmem_pea_i ({cfg_sel_dmem_pea[${idx+3}], cfg_sel_dmem_pea[${idx+2}], cfg_sel_dmem_pea[${idx+1}], cfg_sel_dmem_pea[${idx}]}),
+      .sel_pea_dmem_i ({pea_dmem_sel[${idx+3}],     pea_dmem_sel[${idx+2}],     pea_dmem_sel[${idx+1}],     pea_dmem_sel[${idx}]}),
+      .in_pea_o       ({pea_inputs[${idx+3}],       pea_inputs[${idx+2}],       pea_inputs[${idx+1}],       pea_inputs[${idx}]}),
+      .in_dmem_o      ({dmem_wdata_o[${idx+3}],     dmem_wdata_o[${idx+2}],     dmem_wdata_o[${idx+1}],     dmem_wdata_o[${idx}]})
+  );
+
+  %for j in range(4):
+    dmem_pea_select #(
+      .N_AGE(4)
+    ) dmem_pea_select_4x4_n${j}_stream_${s} (
+        .reg_load_age_sel_i(load_age_sel[${idx+j}]),
+        .age_bank_load_i   ({agu_bank_ls[${idx+3}][1:0], agu_bank_ls[${idx+2}][1:0], agu_bank_ls[${idx+1}][1:0], agu_bank_ls[${idx}][1:0]}),
+        .valid_ls_i        ({agu_valid_ls[${idx+3}],   agu_valid_ls[${idx+2}],   agu_valid_ls[${idx+1}],   agu_valid_ls[${idx}]}),
+        .sel_load_stream_o (cfg_sel_dmem_pea[${idx+j}])
+    );
+  %endfor
+  <% idx += 4%>
+  %endif
+%endfor
 
   ////////////////////////////////////////////////////////////////
   //          Crossbar between agu and Multi-Bank SpM          //
   ////////////////////////////////////////////////////////////////
-  genvar j;
-  generate
-    for (j = 0; j < N_STREAMS; j++) begin : gen_stream_xbar
 
-      xbar_age_to_banks xbar_age_to_banks_inst (
-          .age_addr_i(agu_addr[j]),
-          .age_valid_i(agu_valid[j]),
-          .age_we_i(agu_lns[j]),
-          .age_bank_i(agu_bank[j]),
-          .age_dmem_addr_o(agu_dmem_addr[j]),
-          .age_dmem_bank_o(agu_dmem_bank[j]),
-          .age_dmem_we_o(agu_dmem_we[j]),
-          .age_dmem_valid_o(agu_dmem_valid[j])
-      );
+<% idx = 0%>
+%for s in range(n_streams):
+  %if n_age_per_stream_ds[s] == 1:
 
+  ////////////////////////////////////////
+  //        Stream ${s}: no Xbar        //
+  ////////////////////////////////////////
+
+  always_comb begin
+    if (agu_valid[${idx}]) begin
+      dmem_addr_o[${idx}]    = agu_addr[${idx}];
+      dmem_we_o[${idx}]      = ~agu_lns[${idx}];
+      dmem_req_o[${idx}]     = |agu_bank[${idx}];
+      agu_dmem_valid[${idx}] = agu_valid[${idx}];
+    end else begin
+      dmem_addr_o[${idx}]    = '0;
+      dmem_we_o[${idx}]      = '0;
+      dmem_req_o[${idx}]     = '0;
+      agu_dmem_valid[${idx}] = '0;
     end
+  end
 
-  endgenerate
+  <% idx += 1%>
+  %elif n_age_per_stream_ds[s] == 2:
+
+  ////////////////////////////////////////
+  //        Stream ${s}: Xbar 2x2       //
+  ////////////////////////////////////////
+
+  xbar_age_to_banks #(
+      .N_AGE(2),
+      .N_BNKS(2)
+    ) xbar_age_to_banks_2x2_stream_${s} (
+      .age_addr_i       ({agu_addr[${idx+1}],       agu_addr[${idx}]}),
+      .age_valid_i      ({agu_valid[${idx+1}],      agu_valid[${idx}]}),
+      .age_we_i         ({agu_lns[${idx+1}],        agu_lns[${idx}]}),
+      .age_bank_i       ({agu_bank[${idx+1}][1:0],  agu_bank[${idx}][1:0]}),
+      .age_dmem_addr_o  ({dmem_addr_o[${idx+1}],    dmem_addr_o[${idx}]}),
+      .age_dmem_bank_o  ({dmem_req_o[${idx+1}],     dmem_req_o[${idx}]}),
+      .age_dmem_we_o    ({dmem_we_o[${idx+1}],      dmem_we_o[${idx}]}),
+      .age_dmem_valid_o ({agu_dmem_valid[${idx+1}], agu_dmem_valid[${idx}]})
+  );
+  
+  <% idx += 2%>
+  %elif n_age_per_stream_ds[s] == 4:
+
+  ////////////////////////////////////////
+  //        Stream ${s}: Xbar 4x4       //
+  ////////////////////////////////////////
+
+  xbar_age_to_banks #(
+      .N_AGE(4),
+      .N_BNKS(4)
+    ) xbar_age_to_banks_4x4_stream_${s} (
+      .age_addr_i       ({agu_addr[${idx+3}],       agu_addr[${idx+2}],       agu_addr[${idx+1}],       agu_addr[${idx}]}),
+      .age_valid_i      ({agu_valid[${idx+3}],      agu_valid[${idx+2}],      agu_valid[${idx+1}],      agu_valid[${idx}]}),
+      .age_we_i         ({agu_lns[${idx+3}],        agu_lns[${idx+2}],        agu_lns[${idx+1}],        agu_lns[${idx}]}),
+      .age_bank_i       ({agu_bank[${idx+3}][3:0],  agu_bank[${idx+2}][3:0],  agu_bank[${idx+1}][3:0],  agu_bank[${idx}][3:0]}),
+      .age_dmem_addr_o  ({dmem_addr_o[${idx+3}],    dmem_addr_o[${idx+2}],    dmem_addr_o[${idx+1}],    dmem_addr_o[${idx}]}),
+      .age_dmem_bank_o  ({dmem_req_o[${idx+3}],     dmem_req_o[${idx+2}],     dmem_req_o[${idx+1}],     dmem_req_o[${idx}]}),
+      .age_dmem_we_o    ({dmem_we_o[${idx+3}],      dmem_we_o[${idx+2}],      dmem_we_o[${idx+1}],      dmem_we_o[${idx}]}),
+      .age_dmem_valid_o ({agu_dmem_valid[${idx+3}], agu_dmem_valid[${idx+2}], agu_dmem_valid[${idx+1}], agu_dmem_valid[${idx}]})
+  );
+
+  <% idx += 4%>
+  %endif
+%endfor
 
   // copy of valid_ls that could be removed, it is used as response from memory, which is assumed to be one cc later that req
   always_ff @(posedge clk_i or negedge rst_n_i) begin
@@ -506,17 +551,6 @@ module mage_top
       agu_dmem_valid_d <= '0;
     end else begin
       agu_dmem_valid_d <= agu_dmem_valid;
-    end
-  end
-
-  always_comb begin
-    for (int k = 0; k < N_STREAMS; k = k + 1) begin
-      for (int l = 0; l < N_BANKS_PER_STREAM; l = l + 1) begin
-        dmem_addr_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_addr[k][l];
-        dmem_req_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_bank[k][l];
-        dmem_we_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_we[k][l];
-        dmem_valid_o[k*N_BANKS_PER_STREAM+l] = agu_dmem_valid_d[k][l];
-      end
     end
   end
 %endif

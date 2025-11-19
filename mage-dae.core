@@ -26,14 +26,14 @@ filesets:
     - hw/mage/configuration/mage_reg_top.sv
     - hw/mage/configuration/peripheral_regs.sv
     - hw/mage/xbars/age_to_banks/xbar_age_to_banks.sv
-    - hw/mage/xbars/banks_pea/load_store_stream.sv
-    - hw/mage/xbars/banks_pea/xbar_banks_pea.sv
+    - hw/mage/xbars/banks_pea/dmem_pea_select.sv
+    - hw/mage/xbars/banks_pea/xbar_pea_banks.sv
     - hw/mage/execute/pe/dae/fu/fu_dae_full_gemm.sv
-    - hw/mage/execute/pe/dae/fu/fu_dae_part_gemm.sv
-    - hw/mage/execute/pe/dae/fu/fu_dae_part_gemm_acc.sv
-    - hw/mage/execute/pe/dae/fu/fu_dae_full_act.sv
+    #- hw/mage/execute/pe/dae/fu/fu_dae_part_gemm.sv
+    #- hw/mage/execute/pe/dae/fu/fu_dae_part_gemm_acc.sv
+    #- hw/mage/execute/pe/dae/fu/fu_dae_full_act.sv
     - hw/mage/execute/pe/dae/pe_dae.sv
-    - hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv
+    #- hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv
     - hw/mage/execute/pea.sv
     - hw/mage_top.sv
     file_type: systemVerilogSource
@@ -54,6 +54,7 @@ filesets:
     depend:
     - pulp-platform.org::tech_cells_generic
     files:  
+    #- hw/mage/memory/sram_wrapper.sv
     - hw/mage/memory/data_memory.sv
     file_type: systemVerilogSource
 

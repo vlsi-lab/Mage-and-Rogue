@@ -12,6 +12,7 @@ module pe_dae_part_gemm_acc
 (
     input  logic                                 clk_i,
     input  logic                                 rst_n_i,
+    input  logic                                 start_d_i,
     input  logic [  N_INPUTS_PE-1:0][N_BITS-1:0] pe_op_i,
     input  logic                                 acc_match_i,
     input  logic [N_CFG_BITS_PE-1:0]             ctrl_pe_i,
@@ -55,19 +56,24 @@ module pe_dae_part_gemm_acc
   //      PE Configuration      //
   ////////////////////////////////
   assign mux_a_sel = pe_mux_sel_t'(ctrl_pe_i[OP_A_SEL_MSB : OP_A_SEL_LSB]);
-  assign mux_b_sel = pe_mux_sel_t'(ctrl_pe_i[OP_B_SEL_MSB : OP_V_SEL_LSB]);
-  assign fu_instr  = fu_instr_t'(ctrl_pe_i[INSTR_SEL_MSB : INSTR_SEL_LSB]);
-  assign vec_mode  = ctrl_pe_i[VEC_MODE_MSB : VEC_MODE_LSB];
+  assign mux_b_sel = pe_mux_sel_t'(ctrl_pe_i[OP_B_SEL_MSB : OP_B_SEL_LSB]);
+  assign fu_instr = fu_instr_t'(ctrl_pe_i[INSTR_SEL_MSB : INSTR_SEL_LSB]);
+  assign vec_mode = ctrl_pe_i[VEC_MODE_SEL_MSB : VEC_MODE_SEL_LSB];
+
+  ////////////////////////////////
+  //        PE Operands         //
+  ////////////////////////////////
+  assign op_a = pe_op_i[mux_a_sel];
+  assign op_b = pe_op_i[mux_b_sel];
 
   ////////////////////////////////
   //      Functional Unit       //
   ////////////////////////////////
   fu_dae_part_gemm_acc fu_dae_part_gemm_acc_i (
-      .clk_i(clk_i),
+      .clk_i(clk_cg),
       .rst_n_i(rst_n_i),
       .a_i(op_a),
       .b_i(op_b),
-      .pe_res_i(pe_res_o),
       .instr_i(fu_instr),
       .vec_mode_i(vec_mode),
       .acc_match_i(acc_match_i),
@@ -77,11 +83,15 @@ module pe_dae_part_gemm_acc
   ////////////////////////////////
   //         PE Outputs         //
   ////////////////////////////////
-  always_ff @(posedge clk_i, negedge rst_n_i) begin
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
       pe_res_o <= 0;
     end else begin
-      pe_res_o <= fu_out;
+      if (start_d_i) begin
+        pe_res_o <= fu_out;
+      end else begin
+        pe_res_o <= '0;
+      end
     end
   end
 

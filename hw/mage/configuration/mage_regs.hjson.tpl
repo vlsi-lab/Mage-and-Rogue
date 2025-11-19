@@ -3,6 +3,7 @@
   bus_interfaces: [
     { protocol: "reg_iface", direction: "device" }
   ],
+  <%import math as m%>
   registers: [
 %if dae_cgra == 1:
     { name:     "STATUS",
@@ -170,6 +171,47 @@
         ],
         }
     },
+  %for r in range(int(m.ceil(n_age_tot/8))):
+    { name: "ACC_HWLP_SEL_${r}",
+        desc: "Configuration for AGEs accumulation slection for hwlp rf",
+        swaccess: "rw",
+        hwaccess: "hro",
+        fields: [
+        { bits: "3:0", 
+          name: "S0",
+          desc: "SEL" 
+        },
+        { bits: "7:4", 
+          name: "S1",
+          desc: "SEL" 
+        },
+        { bits: "11:8", 
+          name: "S2",
+          desc: "SEL" 
+        },
+        { bits: "15:12", 
+          name: "S3",
+          desc: "SEL" 
+        },
+        { bits: "19:16", 
+          name: "S4",
+          desc: "SEL" 
+        },
+        { bits: "23:20", 
+          name: "S5",
+          desc: "SEL" 
+        },
+        { bits: "27:24", 
+          name: "S6",
+          desc: "SEL" 
+        },
+        { bits: "31:28", 
+          name: "S7",
+          desc: "SEL" 
+        },
+        ],
+    },
+  %endfor
 %if kernel_len != 1:
     { name:     "PKE",
       desc:     "Length of Prologue, Kernel and Epilogue execution stage, and number of times for Kernel to be repeated",
@@ -197,7 +239,6 @@
     },
 %endif
 %endif
-  <%import math as m%>
 %for r in range(n_pea_rows):
     %for c in range(n_pea_cols):
     { multireg:
@@ -216,11 +257,10 @@
     %endfor
 %endfor
 %if dae_cgra == 1:
-<%import math as m%>
     { multireg:
-        { name: "SEL_OUT_PEA",
-        desc: "Selection signals for output of MAGE-CGRA PEA",
-        count: "${m.ceil(((2*n_pea_rows*m.log2(n_pea_cols))*kernel_len)/32)}",
+        { name: "OUT_PEA_SEL",
+        desc: "Selector for output of MAGE PEA Rows",
+        count: "${m.ceil(((2*n_pea_rows*m.log2(max(n_pea_cols, 4)))*kernel_len)/32)}",
         cname: "ISOP",
         swaccess: "rw",
         hwaccess: "hro",
@@ -231,10 +271,10 @@
         }
     }, 
     { multireg:
-        { name: "L_STREAM_SEL_AGE",
-        desc: "Selection signals for load streams",
-        count: "${int(m.ceil(((n_age_tot*m.log2(n_age_per_stream))*kernel_len)/32))}",
-        cname: "SSS",
+        { name: "LOAD_AGE_SEL",
+        desc: "Selector of Load AGE for PE_GROUP i and PE_ID j",
+        count: "${int(m.ceil(((n_age_tot*m.log2(max(n_age_per_stream,4)))*kernel_len)/32))}",
+        cname: "LAS",
         swaccess: "rw",
         hwaccess: "hro",
         fields: [
@@ -244,10 +284,10 @@
         }
     },
     { multireg:
-        { name: "S_STREAM_SEL_AGE",
-        desc: "Selection signals for store streams",
-        count: "${int(m.ceil(((n_age_tot*m.log2(n_age_per_stream))*kernel_len)/32))}",
-        cname: "LSS",
+        { name: "PEA_DMEM_SEL",
+        desc: "Selector of which (PE_GROUP i and PE_ID j) to connect to (BANK_GROUP i and BANK_ID j)",
+        count: "${int(m.ceil(((n_age_tot*m.log2(max(n_age_per_stream,4)))*kernel_len)/32))}",
+        cname: "PDS",
         swaccess: "rw",
         hwaccess: "hro",
         fields: [
@@ -256,11 +296,10 @@
         ],
         }
     },
-  %for s in range(int(n_age_tot/n_age_per_stream)):
-    %for a in range(n_age_per_stream):
+  %for s in range(n_age_tot):
     { multireg:
-        { name: "CFG_MAGE_S${s}_AGE${a}",
-        desc: "Configuration for AGE ${a} of Stream ${s}",
+        { name: "CFG_MAGE_AGE_${s}",
+        desc: "Configuration for AGE ${s}",
         count : "${kernel_len}",
         cname: "IM",
         swaccess: "rw",
@@ -268,12 +307,11 @@
         fields: [
         { bits: "31:0", 
           name: "AGE_INST",
-          desc: "Instruction for AGE ${a} of Stream ${s}" 
+          desc: "Instruction for AGE ${s}" 
         },
         ],
         }
     },
-    %endfor
   %endfor
 %endif
     { multireg:

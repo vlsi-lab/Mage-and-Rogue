@@ -14,7 +14,7 @@ module age
     input logic clk_i,
     input logic rst_n_i,
     // start-end signal
-    input logic start_i,
+    input pea_pkg::state_t state_i,
     input logic end_lp_i,
     ////////////////////////////////
     //      Signals from ROU      //
@@ -68,6 +68,7 @@ module age
 );
 
   logic clk_cg;
+  logic exec;
 
 % if kernel_len != 1:
   ////////////////////////////////
@@ -135,8 +136,6 @@ module age
   ////////////////////////////////
   //     Start-End Signals      //
   ////////////////////////////////
-  logic                                              end_lp;
-  logic                                              active;
   logic [2:0] end_lp_2;
 
   ////////////////////////////////
@@ -146,7 +145,7 @@ module age
 `ifndef FPGA
   // PE Clock-gating
   logic clk_cg_en;
-  assign clk_cg_en = ~active;
+  assign clk_cg_en = ~active_i;
   tc_clk_gating pe_clk_gating_cell (
       .clk_i(clk_i),
       .en_i(clk_cg_en),
@@ -159,6 +158,8 @@ module age
 `else
   assign clk_cg = clk_i;
 `endif
+
+  assign exec = (state_i == pea_pkg::EXEC) && active_i;
 
   ////////////////////////////////
   //       Pipe Registers       //
@@ -236,7 +237,7 @@ module age
       mult_ivs_out_reg       <= '0;
       flat_address_out_reg   <= '0;
     end else begin
-      if (start_i && active) begin
+      if (exec && (!end_lp_2[2])) begin
         // Stage 0 to 1
         mult_ivs_out_reg       <= mult_ivs_in_reg;
         // Stage 1 to 2
@@ -257,17 +258,20 @@ module age
       pea_acc_reset_2        <= '0;
       iv_0                   <= '0;
     end else begin
-      if (start_i && active) begin
+      if (exec && (!end_lp_2[2])) begin
         valid_2[0]          <= valid_i;
         valid_2[1]          <= valid_2[0];
         valid_2[2]          <= valid_2[1];
 
         pea_acc_reset_2[0]  <= pea_acc_reset_i;
-        pea_acc_reset_2[1]  <= pea_acc_reset_2[0] && is_acc_store_2
-        ;
+        pea_acc_reset_2[1]  <= pea_acc_reset_2[0] && is_acc_store_2;
         pea_acc_reset_2[2]  <= pea_acc_reset_2[1];
 
         iv_0                <= iv_i;
+      end else begin
+        valid_2                <= '0;
+        pea_acc_reset_2        <= '0;
+        iv_0                   <= '0;
       end
     end
   end
@@ -275,29 +279,52 @@ module age
   ////////////////////////////////
   //       Output Signals       //
   ////////////////////////////////
+  
   always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
-      valid_o                <= '0;
-      pea_acc_reset_o        <= '0;
-      age_bank_ls_stream_o   <= '0;
-      age_addr_o             <= '0;
-      age_bank_o             <= '0;
-      lns_o                  <= '0;
+      valid_o              <= '0;
+      pea_acc_reset_o      <= '0;
+      age_addr_o           <= '0;
+      age_bank_o           <= '0;
+      lns_o                <= '0;
     end else begin
-      if (start_i && active) begin
-        valid_o                <= valid_2[2];
-        valid_ls_o             <= valid_o;
+      if (exec && (!end_lp_2[2])) begin
+        valid_o <= valid_2[2];
 
-        pea_acc_reset_o        <= pea_acc_reset_2[2];
+        pea_acc_reset_o <= pea_acc_reset_2[2];
 
         age_addr_o <= ((flat_address_out_reg >> (block_size_2 + n_banks_2)) << (block_size_2)) + x_rem_bs;
 
-        age_bank_ls_stream_out_reg  <= age_bank_ls_stream_in_reg;
-        age_bank_ls_stream_o        <= age_bank_ls_stream_out_reg[0];
+        age_bank_ls_stream_out_reg <= age_bank_ls_stream_in_reg;
 
         age_bank_o <= 1 << age_bank_ls_stream_in_reg;
-        
+
         lns_o <= stream_lns_2;
+      end else begin
+        valid_o              <= '0;
+        pea_acc_reset_o      <= '0;
+        age_addr_o           <= '0;
+        age_bank_o           <= '0;
+        lns_o                <= '0;
+      end
+    end
+  end
+
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
+    if (!rst_n_i) begin
+      age_bank_ls_stream_o <= '0;
+      valid_ls_o <= '0;
+    end else begin
+      if (exec) begin
+        valid_ls_o <= valid_o;
+%if n_age_per_stream == 2:
+        age_bank_ls_stream_o <= age_bank_ls_stream_out_reg[0];
+%elif n_age_per_stream == 4:
+        age_bank_ls_stream_o <= age_bank_ls_stream_out_reg;
+%endif
+      end else begin
+        valid_ls_o <= '0;
+        age_bank_ls_stream_o <= '0;
       end
     end
   end
@@ -305,30 +332,13 @@ module age
   ////////////////////////////////
   //     Start-End Signals      //
   ////////////////////////////////
-  //Asserts and deasserts the active signal based on the end_lp signal (that signals that the kernel is terminated)
-  always_ff @(posedge clk_cg or negedge rst_n_i) begin
-    if (!rst_n_i) begin
-      end_lp   <= 1'b0;
-      active   <= 1'b0;
-    end else begin
-
-      if (end_lp_2[0]) begin
-        end_lp <= 1'b1;
-      end
-
-      if (!end_lp) begin
-        active <= active_i;
-      end
-
-    end
-  end
 
   always_ff @(posedge clk_cg or negedge rst_n_i) begin
     if (!rst_n_i) begin
-      end_lp_2   <= '0;
+      end_lp_2 <= '0;
       end_lp_o <= '0;
     end else begin
-      if (start_i) begin
+      if (exec) begin
         if (end_lp_i) begin
           end_lp_2[0] <= end_lp_i;
         end
@@ -362,25 +372,30 @@ module age
 
   // Stage 2: bank ID and address generation based on number of banks, start bank and block size
   always_comb begin
+% if n_age_per_stream >= 2:
     x_div_bs  = (flat_address_out_reg >> block_size_2);
     case(n_banks_2)
       2'b00: age_bank_ls_stream_in_reg = start_bank_2;
       2'b01: age_bank_ls_stream_in_reg = {1'b0, x_div_bs[0]} + start_bank_2;
 % if n_age_per_stream == 4:
       2'b10: age_bank_ls_stream_in_reg = x_div_bs[1:0] + start_bank_2;
-      2'b11: age_bank_ls_stream_in_reg = x_div_bs[2:0] + start_bank_2;
-% elif n_age_per_stream == 2:
+% endif
       default: age_bank_ls_stream_in_reg = '0;
-%endif
     endcase
+%elif n_age_per_stream == 1:
+    age_bank_ls_stream_in_reg = start_bank_2;
+%endif
 
+% if n_age_per_stream != 1:
     case(block_size_2)
       2'b00: x_rem_bs = '0;
       2'b01: x_rem_bs = {{NBIT_FLAT_ADDR-1{1'b0}},flat_address_out_reg[0]};
       2'b10: x_rem_bs = {{NBIT_FLAT_ADDR-2{1'b0}},flat_address_out_reg[1:0]};
-      2'b11: x_rem_bs = {{NBIT_FLAT_ADDR-3{1'b0}},flat_address_out_reg[2:0]};
       default: x_rem_bs = '0;
     endcase
   end
+%else:
+  x_rem_bs = '0;
+%endif
 
 endmodule : age

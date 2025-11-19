@@ -14,7 +14,7 @@ module age
     input logic clk_i,
     input logic rst_n_i,
     // start-end signal
-    input logic start_i,
+    input pea_pkg::state_t state_i,
     input logic end_lp_i,
     ////////////////////////////////
     //      Signals from ROU      //
@@ -50,6 +50,7 @@ module age
     ////////////////////////////////
     //          Outputs           //
     ////////////////////////////////
+    output logic end_lp_o,
     // Address
     output logic [NBIT_ADDR-1:0] age_addr_o,
     // Bank ID
@@ -63,59 +64,83 @@ module age
     // Valid ls
     output logic valid_ls_o,
     // load-not-store
-    output logic lns_o,
-    // AGE active
-    output logic active_o
+    output logic lns_o
 );
+
+  logic                                           clk_cg;
+  logic                                           exec;
 
   ////////////////////////////////
   //   Configuration [Static]   //
   ////////////////////////////////
 
   // Stage 0 cfg from instruction word
-  logic [         N_IVS-1:0][     NBIT_LP_IV-1:0] age_strides_0;
+  logic [          N_IVS-1:0][    NBIT_LP_IV-1:0] age_strides_0;
 
   // Stage 1 cfg from instruction word
-  logic [     N_AGE_TOT-1:0][     NBIT_LP_IV-1:0] iv_const_1;
+  logic [     NBIT_LP_IV-1:0]                     iv_const_1;
 
   // Stage 2 cfg from instruction word
-  logic [     N_AGE_TOT-1:0][   NBIT_N_BANKS-1:0] n_banks_2;
-  logic [     N_AGE_TOT-1:0][NBIT_START_BANK-1:0] start_bank_2;
-  logic [     N_AGE_TOT-1:0][NBIT_BLOCK_SIZE-1:0] block_size_2;
-  logic [     N_AGE_TOT-1:0]                      stream_lns_2;
-  logic [     N_AGE_TOT-1:0]                      is_acc_store_2;
+  logic [   NBIT_N_BANKS-1:0]                     n_banks_2;
+  logic [NBIT_START_BANK-1:0]                     start_bank_2;
+  logic [NBIT_BLOCK_SIZE-1:0]                     block_size_2;
+  logic                                           stream_lns_2;
+  logic                                           is_acc_store_2;
 
   ////////////////////////////////
   //   Operands of AGE Stages   //
   ////////////////////////////////
 
   // Stage 0
-  logic [               1:0][ NBIT_FLAT_ADDR-1:0] mult_temp_res;
-  logic [         N_IVS-1:0][ NBIT_FLAT_ADDR-1:0] mult_ivs_in_reg;
-  logic [         N_IVS-1:0][ NBIT_FLAT_ADDR-1:0] mult_ivs_out_reg;
+  logic [                1:0][NBIT_FLAT_ADDR-1:0] mult_temp_res;
+  logic [          N_IVS-1:0][NBIT_FLAT_ADDR-1:0] mult_ivs_in_reg;
+  logic [          N_IVS-1:0][NBIT_FLAT_ADDR-1:0] mult_ivs_out_reg;
 
   // Stage 1
-  logic [NBIT_FLAT_ADDR-1:0]                      flat_address_in_reg;
-  logic [NBIT_FLAT_ADDR-1:0]                      flat_address_out_reg;
+  logic [ NBIT_FLAT_ADDR-1:0]                     flat_address_in_reg;
+  logic [ NBIT_FLAT_ADDR-1:0]                     flat_address_out_reg;
 
   // Stage 2
-  logic [NBIT_FLAT_ADDR-1:0]                      x_div_bs;
-  logic [NBIT_FLAT_ADDR-1:0]                      x_rem_bs;
-  logic [               1:0][              3-1:0] age_bank_ls_stream;  //CHECK
+  logic [ NBIT_FLAT_ADDR-1:0]                     x_div_bs;
+  logic [ NBIT_FLAT_ADDR-1:0]                     x_rem_bs;
+  logic [   NBIT_N_BANKS-1:0]                     age_bank_ls_stream_in_reg;
+  logic [   NBIT_N_BANKS-1:0]                     age_bank_ls_stream_out_reg;
 
   ////////////////////////////////
   //        ROU signals         //
   ////////////////////////////////
 
-  logic [               2:0]                      valid_2;
-  logic [         N_IVS-1:0][     NBIT_LP_IV-1:0] iv_0;
-  logic [               2:0]                      pea_acc_reset_2;
+  logic [                2:0]                     valid_2;
+  logic [          N_IVS-1:0][    NBIT_LP_IV-1:0] iv_0;
+  logic [                2:0]                     pea_acc_reset_2;
 
   ////////////////////////////////
   //     Start-End Signals      //
   ////////////////////////////////
-  logic                                           end_lp;
-  logic                                           active;  // TO BE CHECKED
+  logic [                2:0]                     end_lp_2;
+
+  ////////////////////////////////
+  //     Clock-gating cell      //
+  ////////////////////////////////
+`ifndef VERILATOR
+`ifndef FPGA
+  // PE Clock-gating
+  logic clk_cg_en;
+  assign clk_cg_en = ~active_i;
+  tc_clk_gating pe_clk_gating_cell (
+      .clk_i(clk_i),
+      .en_i(clk_cg_en),
+      .test_en_i(1'b0),
+      .clk_o(clk_cg)
+  );
+`else
+  assign clk_cg = clk_i;
+`endif
+`else
+  assign clk_cg = clk_i;
+`endif
+
+  assign exec = (state_i == pea_pkg::EXEC) && active_i;
 
   ////////////////////////////////
   //       Pipe Registers       //
@@ -136,12 +161,12 @@ module age
   ////////////////////////////////
   //   Operands of AGE Stages   //
   ////////////////////////////////
-  always_ff @(posedge clk_i, negedge rst_n_i) begin
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
       mult_ivs_out_reg     <= '0;
       flat_address_out_reg <= '0;
     end else begin
-      if (start_i && active) begin
+      if (exec && (!end_lp_2[2])) begin
         // Stage 0 to 1
         mult_ivs_out_reg     <= mult_ivs_in_reg;
         // Stage 1 to 2
@@ -156,22 +181,26 @@ module age
   ////////////////////////////////
   //        ROU Signals         //
   ////////////////////////////////
-  always_ff @(posedge clk_i, negedge rst_n_i) begin
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
       valid_2         <= '0;
       pea_acc_reset_2 <= '0;
       iv_0            <= '0;
     end else begin
-      if (start_i && active) begin
+      if (exec && (!end_lp_2[2])) begin
         valid_2[0]         <= valid_i;
         valid_2[1]         <= valid_2[0];
-        valid_2[2]         <= valid_2[2];
+        valid_2[2]         <= valid_2[1];
 
         pea_acc_reset_2[0] <= pea_acc_reset_i;
-        pea_acc_reset_2[1] <= pea_acc_reset_2[0] && is_acc_store_i;
+        pea_acc_reset_2[1] <= pea_acc_reset_2[0] && is_acc_store_2;
         pea_acc_reset_2[2] <= pea_acc_reset_2[1];
 
         iv_0               <= iv_i;
+      end else begin
+        valid_2         <= '0;
+        pea_acc_reset_2 <= '0;
+        iv_0            <= '0;
       end
     end
   end
@@ -179,29 +208,48 @@ module age
   ////////////////////////////////
   //       Output Signals       //
   ////////////////////////////////
-  always_ff @(posedge clk_i, negedge rst_n_i) begin
+
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
     if (!rst_n_i) begin
-      valid_o              <= '0;
-      pea_acc_reset_o      <= '0;
-      age_bank_ls_stream_o <= '0;
-      age_addr_o           <= '0;
-      age_bank_o           <= '0;
-      lns_o                <= '0;
+      valid_o         <= '0;
+      pea_acc_reset_o <= '0;
+      age_addr_o      <= '0;
+      age_bank_o      <= '0;
+      lns_o           <= '0;
     end else begin
-      if (start_i && active) begin
+      if (exec && (!end_lp_2[2])) begin
         valid_o <= valid_2[2];
-        valid_ls_o <= valid_o;
 
         pea_acc_reset_o <= pea_acc_reset_2[2];
 
         age_addr_o <= ((flat_address_out_reg >> (block_size_2 + n_banks_2)) << (block_size_2)) + x_rem_bs;
 
-        age_bank_ls_stream[1][0] <= age_bank_ls_stream[0][0];
-        age_bank_ls_stream_o <= age_bank_ls_stream[1][0];
+        age_bank_ls_stream_out_reg <= age_bank_ls_stream_in_reg;
 
-        age_bank_o <= 1 << age_bank_ls_stream[0];
+        age_bank_o <= 1 << age_bank_ls_stream_in_reg;
 
         lns_o <= stream_lns_2;
+      end else begin
+        valid_o         <= '0;
+        pea_acc_reset_o <= '0;
+        age_addr_o      <= '0;
+        age_bank_o      <= '0;
+        lns_o           <= '0;
+      end
+    end
+  end
+
+  always_ff @(posedge clk_cg, negedge rst_n_i) begin
+    if (!rst_n_i) begin
+      age_bank_ls_stream_o <= '0;
+      valid_ls_o <= '0;
+    end else begin
+      if (exec) begin
+        valid_ls_o <= valid_o;
+        age_bank_ls_stream_o <= age_bank_ls_stream_out_reg[0];
+      end else begin
+        valid_ls_o <= '0;
+        age_bank_ls_stream_o <= '0;
       end
     end
   end
@@ -209,27 +257,23 @@ module age
   ////////////////////////////////
   //     Start-End Signals      //
   ////////////////////////////////
-  //Asserts and deasserts the active signal based on the end_lp signal (that signals that the kernel is terminated)
-  always_ff @(posedge clk_i or negedge rst_n_i) begin
+
+  always_ff @(posedge clk_cg or negedge rst_n_i) begin
     if (!rst_n_i) begin
-      end_lp   <= 1'b0;
-      active   <= 1'b0;
-      active_o <= 1'b0;
+      end_lp_2 <= '0;
+      end_lp_o <= '0;
     end else begin
-
-      if (end_lp_i) begin
-        end_lp <= 1'b1;
+      if (exec) begin
+        if (end_lp_i) begin
+          end_lp_2[0] <= end_lp_i;
+        end
+        end_lp_2[1] <= end_lp_2[0];
+        end_lp_2[2] <= end_lp_2[1];
+        end_lp_o    <= end_lp_2[2];
       end else begin
-        end_lp <= end_lp;
+        end_lp_2 <= '0;
+        end_lp_o <= '0;
       end
-
-      if (!end_lp) begin
-        active <= active_i;
-      end else begin
-        active <= 1'b0;
-      end
-
-      active_o <= active;
     end
   end
 
@@ -240,7 +284,7 @@ module age
   // Stage 0: multiplication of IVs by their strides
   always_comb begin
     for (int i = 0; i < N_IVS; i = i + 1) begin
-      mult_ivs_in_reg[i] = iv_i[i] * age_strides_0[i];
+      mult_ivs_in_reg[i] = iv_0[i] * age_strides_0[i];
     end
   end
 
@@ -248,24 +292,23 @@ module age
   assign mult_temp_res[0] = mult_ivs_out_reg[0] + mult_ivs_out_reg[1];
   assign mult_temp_res[1] = mult_ivs_out_reg[2] + mult_ivs_out_reg[3];
   always_comb begin
-    flat_address_in_reg = mult_temp_res[0] + mult_temp_res[1] + iv_const_1;
+    flat_address_in_reg = mult_temp_res[0] + mult_temp_res[1] + {2'b0, iv_const_1};  // UNSIGNED
   end
 
   // Stage 2: bank ID and address generation based on number of banks, start bank and block size
   always_comb begin
     x_div_bs = (flat_address_out_reg >> block_size_2);
     case (n_banks_2)
-      2'b00: age_bank_ls_stream[0] = start_bank_2;
-      2'b01: age_bank_ls_stream[0] = {2'b0, x_div_bs[0]} + start_bank_2;
-      2'b10: age_bank_ls_stream[0] = {1'b0, x_div_bs[1:0]} + start_bank_2;
-      2'b11: age_bank_ls_stream[0] = x_div_bs[2:0] + start_bank_2;
+      2'b00:   age_bank_ls_stream_in_reg = start_bank_2;
+      2'b01:   age_bank_ls_stream_in_reg = {1'b0, x_div_bs[0]} + start_bank_2;
+      default: age_bank_ls_stream_in_reg = '0;
     endcase
 
     case (block_size_2)
-      2'b00: x_rem_bs = '0;
-      2'b01: x_rem_bs = {{NBIT_FLAT_ADDR - 1{1'b0}}, flat_address_out_reg[0]};
-      2'b10: x_rem_bs = {{NBIT_FLAT_ADDR - 2{1'b0}}, flat_address_out_reg[1:0]};
-      2'b11: x_rem_bs = {{NBIT_FLAT_ADDR - 3{1'b0}}, flat_address_out_reg[2:0]};
+      2'b00:   x_rem_bs = '0;
+      2'b01:   x_rem_bs = {{NBIT_FLAT_ADDR - 1{1'b0}}, flat_address_out_reg[0]};
+      2'b10:   x_rem_bs = {{NBIT_FLAT_ADDR - 2{1'b0}}, flat_address_out_reg[1:0]};
+      default: x_rem_bs = '0;
     endcase
   end
 

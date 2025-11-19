@@ -61,14 +61,19 @@ module dmem_decoder
     active_banks = '0;
     addr_to_bank = addr_lrs_2[$clog2(BANK_SIZE)-1:0];
 
-    active_banks[0] = (addr_lrs_2[13:10] == 0) ? 1'b1 : 1'b0;
-    active_banks[1] = (addr_lrs_2[13:10] == 1) ? 1'b1 : 1'b0;
-    active_banks[2] = (addr_lrs_2[13:10] == 2) ? 1'b1 : 1'b0;
-    active_banks[3] = (addr_lrs_2[13:10] == 3) ? 1'b1 : 1'b0;
-    active_banks[4] = (addr_lrs_2[13:10] == 4) ? 1'b1 : 1'b0;
-    active_banks[5] = (addr_lrs_2[13:10] == 5) ? 1'b1 : 1'b0;
-    active_banks[6] = (addr_lrs_2[13:10] == 6) ? 1'b1 : 1'b0;
-    active_banks[7] = (addr_lrs_2[13:10] == 7) ? 1'b1 : 1'b0;
+%for i in range(n_age_tot):
+  %if num_words == 1024:
+    active_banks[${i}] = (addr_lrs_2[13:10] == ${i}) ? 1'b1 : 1'b0;
+  %elif num_words == 2048:
+    active_banks[${i}] = (addr_lrs_2[14:11] == ${i}) ? 1'b1 : 1'b0;
+  %elif num_words == 4096:
+    active_banks[${i}] = (addr_lrs_2[15:12] == ${i}) ? 1'b1 : 1'b0;
+  %elif num_words == 8192:
+    active_banks[${i}] = (addr_lrs_2[16:13] == ${i}) ? 1'b1 : 1'b0;
+  %elif num_words == 512:
+    active_banks[${i}] = (addr_lrs_2[12:9] == ${i}) ? 1'b1 : 1'b0;
+  %endif
+%endfor 
 
   end
 
@@ -78,21 +83,15 @@ module dmem_decoder
     if (is_dmem_address == 1'b1) begin
 
       if (active_banks[0]) begin
-        ext_dmem_req = {7'd0, ext_dmem_req_i};
-      end else if (active_banks[1]) begin
-        ext_dmem_req = {6'b0, ext_dmem_req_i, 1'b0};
-      end else if (active_banks[2]) begin
-        ext_dmem_req = {5'b0, ext_dmem_req_i, 2'b0};
-      end else if (active_banks[3]) begin
-        ext_dmem_req = {4'b0, ext_dmem_req_i, 3'b0};
-      end else if (active_banks[4]) begin
-        ext_dmem_req = {3'b0, ext_dmem_req_i, 4'b0};
-      end else if (active_banks[5]) begin
-        ext_dmem_req = {2'b0, ext_dmem_req_i, 5'b0};
-      end else if (active_banks[6]) begin
-        ext_dmem_req = {1'b0, ext_dmem_req_i, 6'b0};
-      end else if (active_banks[7]) begin
-        ext_dmem_req = {ext_dmem_req_i, 7'b0};
+        ext_dmem_req = {${n_age_tot-1}'d0, ext_dmem_req_i};
+  %for i in range (1, n_age_tot):
+      end else if (active_banks[${i}]) begin
+    %if n_age_tot - i -1 == 0:
+        ext_dmem_req = {ext_dmem_req_i, ${i}'b0};
+    %else:
+        ext_dmem_req = {${n_age_tot - i -1}'b0, ext_dmem_req_i, ${i}'b0};
+    %endif
+  %endfor
       end else begin
         ext_dmem_req = '0;
       end

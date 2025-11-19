@@ -20,7 +20,7 @@
 
     common_params: {
         n_pea_rows: 4,
-        n_pea_cols: 4,
+        n_pea_cols: 2,
         n_neigh_pe: 4,
         pattern_neigh_pe: ["UP", "LEFT", "RIGHT", "DOWN"],
     },
@@ -29,7 +29,9 @@
         kernel_len : 1,
         n_age_tot : 8,
         n_age_per_stream : 2,
+        n_streams: 4,
         n_pe_in_mem : 4,
+        n_age_per_stream_ds : [2, 2, 2, 2],
         acc_pes : [],
         pea_in_mem_placement : [[0, 1, 4, 5], [0, 1, 4, 5], [2, 3, 6, 7], [2, 3, 6, 7]],
         num_words : 1024,

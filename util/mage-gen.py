@@ -144,7 +144,9 @@ def main():
 
         "kernel_len"                       : cfg['dae_params']['kernel_len'],
         "n_pe_in_mem"                      : cfg['dae_params']['n_pe_in_mem'],
+        "n_streams"                        : cfg['dae_params']['n_streams'],
         "pea_in_mem_placement"             : cfg['dae_params']['pea_in_mem_placement'],
+        "n_age_per_stream_ds"              : cfg['dae_params']['n_age_per_stream_ds'],
         "n_age_tot"                        : cfg['dae_params']['n_age_tot'],
         "n_age_per_stream"                 : cfg['dae_params']['n_age_per_stream'],
         "num_words"                        : cfg['dae_params']['num_words'],

@@ -13,7 +13,7 @@ module agu
 (
     input logic clk_i,
     input logic rst_n_i,
-    input logic start_i,
+    input pea_pkg::state_t state_i,
 %if format_part == 1:
     input logic [1:0] reg_acc_vec_mode_i,
 %endif  
@@ -33,6 +33,7 @@ module agu
     //                Re-Order Unit Configuration                 //
     ////////////////////////////////////////////////////////////////
     input logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] reg_age_strides_i,
+    input logic [N_AGE_TOT-1:0][LOG2_HWLP_RF_SIZE-1:0] reg_age_acc_hwlp_sel_i,
     ////////////////////////////////////////////////////////////////
     //                   Streams Configuration                    //
     ////////////////////////////////////////////////////////////////
@@ -51,13 +52,13 @@ module agu
     ////////////////////////////////////////////////////////////////
     //                Interface to Multi-Bank SpM                 //
     ////////////////////////////////////////////////////////////////
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][NBIT_ADDR-1:0] agu_addr_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][N_BANKS_PER_STREAM-1:0] agu_bank_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0][LOG_N_BANKS_PER_STREAM-1:0] agu_bank_ls_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_valid_ls_o,
-    output logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] agu_lns_o,
-    output logic agu_pea_acc_reset_o
+    output logic [N_AGE_TOT-1:0][NBIT_ADDR-1:0] agu_addr_o,
+    output logic [N_AGE_TOT-1:0][N_BANKS_PER_STREAM-1:0] agu_bank_o,
+    output logic [N_AGE_TOT-1:0][LOG_N_BANKS_PER_STREAM-1:0] agu_bank_ls_o,
+    output logic [N_AGE_TOT-1:0] agu_valid_o,
+    output logic [N_AGE_TOT-1:0] agu_valid_ls_o,
+    output logic [N_AGE_TOT-1:0] agu_lns_o,
+    output logic [N_AGE_TOT/2-1:0] agu_pea_acc_reset_o
 );
 % if kernel_len != 1:
   ////////////////////////////////////////////////////////////////
@@ -103,7 +104,7 @@ module agu
   ////////////////////////////////////////////////////////////////
   //                      AGE Unit Outputs                      //
   ////////////////////////////////////////////////////////////////
-  logic [N_STREAMS-1:0][N_AGE_PER_STREAM-1:0] age_pea_acc_reset;
+  logic [N_AGE_TOT-1:0] age_pea_acc_reset;
   ////////////////////////////////////////////////////////////////
   //                     Start/End Signals                      //
   ////////////////////////////////////////////////////////////////
@@ -116,7 +117,7 @@ module agu
   k_controller k_controller_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
-      .start_i(start_i),
+      .state_i(state_i),
 % if kernel_len != 1:
       .reg_lp_info_i(reg_lp_info_i),
       .count_pke_o(cfgmem_addr_disp),
@@ -131,7 +132,7 @@ module agu
   hwlp hwlp_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
-      .count_en_i(start_i),
+      .state_i(state_i),
       .end_condition_lp_o(hwlp_end_condition),
       .reg_II_i(reg_II_i),
       .reg_loop_vars_i(reg_loop_vars_i),
@@ -145,7 +146,7 @@ module agu
   hwlp_rf hwlp_rf_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
-      .start_i(start_i),
+      .state_i(state_i),
       .end_lp_i(hwlp_end_lp),
       .end_condition_lp_i(hwlp_end_condition),
       .end_condition_lp_o(hwlp_rf_end_condition),
@@ -160,7 +161,9 @@ module agu
   hwlp_rou hwlp_rou_inst (
       .clk_i(clk_i),
       .rst_n_i(rst_n_i),
+      .state_i(state_i),
       .hwlp_sel_i(rou_hwlp_sel),
+      .reg_age_acc_hwlp_sel_i(reg_age_acc_hwlp_sel_i),
       .hwlp_rf_i(hwlp_rf),
       .end_lp_i(hwlp_rf_end_lp),
       .hwlp_end_condition_i(hwlp_rf_end_condition),
@@ -169,9 +172,6 @@ module agu
       .iv_constraints_sel_i(rou_iv_constraints_sel),
       .hwlp_valid_i(hwlp_rf_valid),
       .is_acc_store_rou_i(rou_is_acc_store),
-%if format_part == 1:
-      .reg_acc_vec_mode_i(reg_acc_vec_mode_i),
-%endif      
       .stream_valid_o(rou_to_age_stream_valid),
       .pea_acc_reset_o(rou_to_age_pea_acc_reset),
       .hwlp_rou_o(rou_to_age_hwlp),
@@ -182,7 +182,7 @@ module agu
   age_unit age_unit_inst (
     .clk_i(clk_i),
     .rst_n_i(rst_n_i),
-    .start_i(start_i),
+    .state_i(state_i),
     .end_lp_i(hwlp_rou_end_lp),
     .end_lp_o(age_end_lp),
     .age_strides_i(reg_age_strides_i),
@@ -205,7 +205,11 @@ module agu
     .stream_lns_o(agu_lns_o)
 );
 
-  assign agu_pea_acc_reset_o = |age_pea_acc_reset;
+  always_comb begin
+%for s in range (int(n_age_tot/2)):
+    agu_pea_acc_reset_o[${s}] = age_pea_acc_reset[${s+int(n_age_tot/2)}] || age_pea_acc_reset[${s}];
+%endfor
+  end
 
 % if kernel_len != 1:
   // Configuration Memory Address (PC)

@@ -15,7 +15,6 @@ module fu_dae_part_gemm_acc
     input  logic                   rst_n_i,
     input  logic      [N_BITS-1:0] a_i,
     input  logic      [N_BITS-1:0] b_i,
-    input  logic      [N_BITS-1:0] pe_res_i,
     input  logic      [       1:0] vec_mode_i,
     input  logic                   acc_match_i,
     input  fu_instr_t              instr_i,
@@ -48,13 +47,9 @@ module fu_dae_part_gemm_acc
   logic              vec_mode_16;
   logic              no_vec_mode;
 
-  //fu signals
-  logic [N_BITS-1:0] tmp_pe_res;
-
   //Accumulation signals
+  logic [N_BITS-1:0] feedback_acc;
   logic              acc_match;
-  logic [       4:0] output_ready_ff;
-  logic              output_ready;
   logic [      17:0] adder_res_16_part;
   logic [      17:0] adder_16_part_in_a;
   logic [      17:0] adder_16_part_in_b;
@@ -82,7 +77,7 @@ module fu_dae_part_gemm_acc
   always_comb begin
     if (instr_i == ACC) begin
       if (!acc_match) begin
-        op_a = pe_res_i;
+        op_a = feedback_acc;
       end else begin
         op_a = a_i;
       end
@@ -105,13 +100,12 @@ module fu_dae_part_gemm_acc
   ////////////////////////////////
   always_comb begin
 
-    // default case is mul32
-    mul_op_16_1_a = op_a[15:0];  //A_low
-    mul_op_16_1_b = b_i[15:0];  //B_low
-    mul_op_16_2_a = op_a[15:0];  //A_low
-    mul_op_16_2_b = b_i[31:16];  //B_high
-    mul_op_16_3_a = op_a[31:16];  //A_high
-    mul_op_16_3_b = b_i[15:0];  //B_low
+    mul_op_16_1_a = '0;
+    mul_op_16_1_b = '0;
+    mul_op_16_2_a = '0;
+    mul_op_16_2_b = '0;
+    mul_op_16_3_a = '0;
+    mul_op_16_3_b = '0;
     mul_op_8_a = '0;
     mul_op_8_b = '0;
 
@@ -134,6 +128,16 @@ module fu_dae_part_gemm_acc
         mul_op_16_2_b = b_i[31:16];
         mul_op_16_3_a = '0;
         mul_op_16_3_b = '0;
+      end else begin
+        // mul32
+        mul_op_16_1_a = op_a[15:0];
+        mul_op_16_1_b = b_i[15:0];
+        mul_op_16_2_a = op_a[15:0];
+        mul_op_16_2_b = b_i[31:16];
+        mul_op_16_3_a = op_a[31:16];
+        mul_op_16_3_b = b_i[15:0];
+        mul_op_8_a = '0;
+        mul_op_8_b = '0;
       end
     end
   end
@@ -169,6 +173,7 @@ module fu_dae_part_gemm_acc
   /////////////////////////////////
   //Part Add/Sub (based on RI5CY)//
   /////////////////////////////////
+  logic is_add_instr;
 
   logic adder_op_b_negate;
   logic [15:0]
@@ -182,18 +187,20 @@ module fu_dae_part_gemm_acc
   logic [31:0] adder_result;
   logic [18:0] adder_result_expanded_low, adder_result_expanded_high;
 
+  assign is_add_instr = (instr_i == SUB || instr_i == ADD || instr_i == ACC || instr_i == ABS || instr_i == MIN || instr_i == MAX);
+
   assign adder_op_b_negate = (instr_i == SUB);
 
   // prepare operand a
-  assign adder_op_a_low = op_a[15:0];
-  assign adder_op_a_high = op_a[31:16];
+  assign adder_op_a_low = is_add_instr ? op_a[15:0] : '0;
+  assign adder_op_a_high = is_add_instr ? op_a[31:16] : '0;
 
   // prepare operand b
-  assign adder_op_b_low = adder_op_b_negate ? operand_b_neg_low : b_i[15:0];
-  assign adder_op_b_high = adder_op_b_negate ? operand_b_neg_high : b_i[31:16];
+  assign adder_op_b_low = is_add_instr ? (adder_op_b_negate ? operand_b_neg_low : b_i[15:0]) : '0;
+  assign adder_op_b_high = is_add_instr ? (adder_op_b_negate ? operand_b_neg_high : b_i[31:16]) : '0;
 
-  assign operand_b_neg_low = ~b_i[15:0];
-  assign operand_b_neg_high = ~b_i[31:16];
+  assign operand_b_neg_low = is_add_instr ? ~b_i[15:0] : '0;
+  assign operand_b_neg_high = is_add_instr ? ~b_i[31:16] : '0;
 
   // prepare carry
   always_comb begin
@@ -221,10 +228,10 @@ module fu_dae_part_gemm_acc
       adder_in_b_low[0] = 1'b1;
 
       if (vec_mode_16) begin
-        adder_in_a_high[0] = 1'b0;
+        adder_in_a_high[0] = 1'b1;
         adder_in_b_high[0] = 1'b1;
       end else if (vec_mode_8) begin
-        adder_in_a_high[0] = 1'b0;
+        adder_in_a_high[0] = 1'b1;
         adder_in_b_low[9]  = 1'b1;
         adder_in_b_high[0] = 1'b1;
         adder_in_b_high[9] = 1'b1;
@@ -253,8 +260,16 @@ module fu_dae_part_gemm_acc
   end
 
   // actual adder
-  assign adder_result_expanded_low = $signed(adder_in_a_low) + $signed(adder_in_b_low);
-  assign adder_result_expanded_high = $signed(adder_in_a_high) + $signed(adder_in_b_high);
+  assign adder_result_expanded_low  = (instr_i == ADD || instr_i == SUB || instr_i == ACC || (instr_i == MUL && no_vec_mode)) ? ($signed(
+      adder_in_a_low
+  ) + $signed(
+      adder_in_b_low
+  )) : '0;
+  assign adder_result_expanded_high = (instr_i == ADD || instr_i == SUB || instr_i == ACC || (instr_i == MUL && no_vec_mode)) ? ($signed(
+      adder_in_a_high
+  ) + $signed(
+      adder_in_b_high
+  )) : '0;
   assign adder_result = {
     adder_result_expanded_high[17:10],
     adder_result_expanded_high[8:1],
@@ -268,10 +283,9 @@ module fu_dae_part_gemm_acc
 
   logic        shift_left;  // should we shift left
   logic        shift_arithmetic;
+  logic        is_shift_instr;
 
   logic [31:0] operand_a_rev;
-  logic [31:0] operand_a_neg;
-  logic [31:0] operand_a_neg_rev;
 
   logic [31:0] shift_amt_left;  // amount of shift, if to the left
   logic [31:0] shift_amt;  // amount of shift, to the right
@@ -281,34 +295,27 @@ module fu_dae_part_gemm_acc
   logic [31:0] shift_right_result;
   logic [31:0] shift_left_result;
 
-  assign shift_amt = b_i;
+  assign is_shift_instr = (instr_i == LSH || instr_i == ARSH || instr_i == LRSH);
 
-  assign operand_a_neg = ~op_a;
-  // bit reverse operand_a_neg for left shifts and bit counting
-  generate
-    genvar m;
-    for (m = 0; m < 32; m++) begin : gen_operand_a_neg_rev
-      assign operand_a_neg_rev[m] = operand_a_neg[31-m];
-    end
-  endgenerate
+  assign shift_amt = is_shift_instr ? b_i : '0;
 
   // bit reverse operand_a for left shifts
   generate
     genvar k;
     for (k = 0; k < 32; k++) begin : gen_operand_a_rev
-      assign operand_a_rev[k] = op_a[31-k];
+      assign operand_a_rev[k] = a_i[31-k];
     end
   endgenerate
 
   // by reversing the bits of the input, we also have to reverse the order of shift amounts
   always_comb begin
     case (vec_mode_i)
-      2'b01: begin
+      2'b10: begin
         shift_amt_left[15:0]  = shift_amt[31:16];
         shift_amt_left[31:16] = shift_amt[15:0];
       end
 
-      2'b10: begin
+      2'b01: begin
         shift_amt_left[7:0]   = shift_amt[31:24];
         shift_amt_left[15:8]  = shift_amt[23:16];
         shift_amt_left[23:16] = shift_amt[15:8];
@@ -325,11 +332,11 @@ module fu_dae_part_gemm_acc
   // ALU_FL1 and ALU_CBL are used for the bit counting ops later
   assign shift_left = (instr_i == LSH);
 
-  assign shift_arithmetic = (instr_i == ARSH)  || (instr_i == LRSH);
+  assign shift_arithmetic = instr_i == ARSH;
 
   // choose the bit reversed or the normal input for shift operand a
-  assign shift_op_a    = shift_left ? operand_a_rev : op_a;
-  assign shift_amt_int = shift_left ? shift_amt_left : shift_amt;
+  assign shift_op_a    = is_shift_instr ? (shift_left ? operand_a_rev : a_i) : '0;
+  assign shift_amt_int = is_shift_instr ? (shift_left ? shift_amt_left : shift_amt) : '0;
 
   // right shifts, we let the synthesizer optimize this
   logic [63:0] shift_op_a_32;
@@ -338,14 +345,14 @@ module fu_dae_part_gemm_acc
 
   always_comb begin
     case (vec_mode_i)
-      2'b01: begin
+      2'b10: begin
         shift_right_result[31:16] = $signed({shift_arithmetic & shift_op_a[31],
                                              shift_op_a[31:16]}) >>> shift_amt_int[19:16];
         shift_right_result[15:0] =
             $signed({shift_arithmetic & shift_op_a[15], shift_op_a[15:0]}) >>> shift_amt_int[3:0];
       end
 
-      2'b10: begin
+      2'b01: begin
         shift_right_result[31:24] = $signed({shift_arithmetic & shift_op_a[31],
                                              shift_op_a[31:24]}) >>> shift_amt_int[26:24];
         shift_right_result[23:16] = $signed({shift_arithmetic & shift_op_a[23],
@@ -393,26 +400,32 @@ module fu_dae_part_gemm_acc
       ADD: res_o = adder_result;
 
       ACC: begin
-        if (output_ready && vec_mode_8) begin
-          res_o = {{24{adder_8_res[7]}}, adder_8_res};
-        end else if (output_ready && vec_mode_16) begin
-          res_o = {{16{adder_res_16_part[17]}}, adder_res_16_part[17:10], adder_res_16_part[8:1]};
+        if (acc_match) begin
+          if (vec_mode_8) begin
+            res_o = {{24{adder_8_res[7]}}, adder_8_res};
+          end else if (vec_mode_16) begin
+            res_o = {{16{adder_res_16_part[17]}}, adder_res_16_part[17:10], adder_res_16_part[8:1]};
+          end else begin
+            res_o = feedback_acc;
+          end
         end else begin
-          res_o = adder_result;
+          res_o = '0;
         end
       end
 
       SUB: res_o = adder_result;
       LSH: res_o = shift_result;
+      FW_A: res_o = a_i;
+      FW_B: res_o = b_i;
       ARSH: res_o = shift_result;
       LRSH: res_o = shift_result;
-      ABS: res_o = a_signed[N_BITS-1] ? adder_result[N_BITS:1] : a_signed;
+      ABS: res_o = a_i[N_BITS-1] ? adder_result[N_BITS-1:0] : a_i;
       MAX:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
-                                                  ((adder_result[N_BITS-1] == a_signed[N_BITS-1]) ? b_signed : a_signed);
+      res_o = (a_i[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_i[N_BITS-1]) ? b_i : a_i) :
+                                                  ((adder_result[N_BITS-1] == a_i[N_BITS-1]) ? b_i : a_i);
       MIN:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_signed[N_BITS-1]) ? a_signed : b_signed) :
-                                                  ((adder_result[N_BITS-1] == a_signed[N_BITS-1]) ? a_signed : b_signed);
+      res_o = (a_i[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_i[N_BITS-1]) ? a_i : b_i) :
+                                                  ((adder_result[N_BITS-1] == a_i[N_BITS-1]) ? a_i : b_i);
 
       default: res_o = 0;
     endcase
@@ -422,37 +435,12 @@ module fu_dae_part_gemm_acc
   // 16-bit and 8-bit Adders for Vector Mode Final Accumulation //
   ////////////////////////////////////////////////////////////////
 
-  //PE temporary output register holding the operand to consider for vecmode 8 and 16 accumulation final stage
-  always_ff @(posedge clk_i, negedge rst_n_i) begin
-    if (!rst_n_i) begin
-      tmp_pe_res <= 0;
-    end else begin
-      if (acc_match) begin
-        tmp_pe_res <= pe_res_i;
-      end
-    end
-  end
-
-  // delay acc_match to create the signal that is asserted when the output is ready
+  // feedback for accumulation
   always_ff @(posedge clk_i or negedge rst_n_i) begin
     if (~rst_n_i) begin
-      output_ready_ff <= 0;
+      feedback_acc <= 0;
     end else begin
-      output_ready_ff[0] <= acc_match;
-      for (int i = 1; i < 5; i++) begin
-        output_ready_ff[i] <= output_ready_ff[i-1];
-      end
-    end
-  end
-
-  // Depending on the vector mode, the actual output ready signal differs
-  always_comb begin
-    if (vec_mode_8) begin
-      output_ready = output_ready_ff[2];
-    end else if (vec_mode_16) begin
-      output_ready = output_ready_ff[1];
-    end else begin
-      output_ready = acc_match;
+      feedback_acc <= adder_result;
     end
   end
 
@@ -461,35 +449,27 @@ module fu_dae_part_gemm_acc
   // first vec8 addtion in the accumulation process
   always_comb begin
     adder_16_part_in_a[0]     = 1'b1;
-    adder_16_part_in_a[8:1]   = tmp_pe_res[7:0];
+    adder_16_part_in_a[8:1]   = feedback_acc[7:0];
     adder_16_part_in_a[9]     = 1'b1;
-    adder_16_part_in_a[17:10] = tmp_pe_res[15:8];
+    adder_16_part_in_a[17:10] = feedback_acc[15:8];
 
     adder_16_part_in_b[0]     = 1'b0;
-    adder_16_part_in_b[8:1]   = tmp_pe_res[23:16];
+    adder_16_part_in_b[8:1]   = feedback_acc[23:16];
     adder_16_part_in_b[9]     = 1'b0;
-    adder_16_part_in_b[17:10] = tmp_pe_res[31:24];
+    adder_16_part_in_b[17:10] = feedback_acc[31:24];
 
     if (vec_mode_8) begin
       adder_16_part_in_a[9] = 1'b0;
     end
   end
 
-  // adder and register
-  always_ff @(posedge clk_i or negedge rst_n_i) begin
-    if (~rst_n_i) begin
-      adder_res_16_part <= 0;
-    end else begin
-      adder_res_16_part <= $signed(adder_16_part_in_a) + $signed(adder_16_part_in_b);
-    end
-  end
-
-  // 8-bit adder and register (Final vec8 addition)
-  always_ff @(posedge clk_i or negedge rst_n_i) begin
-    if (~rst_n_i) begin
-      adder_8_res <= 0;
-    end else begin
-      adder_8_res <= $signed(adder_res_16_part[8:1]) + $signed(adder_res_16_part[17:10]);
+  // adders for accumulation
+  always_comb begin
+    adder_res_16_part = '0;
+    adder_8_res = '0;
+    if (acc_match) begin
+      adder_res_16_part = $signed(adder_16_part_in_a) + $signed(adder_16_part_in_b);
+      adder_8_res = $signed(adder_res_16_part[8:1]) + $signed(adder_res_16_part[17:10]);
     end
   end
 

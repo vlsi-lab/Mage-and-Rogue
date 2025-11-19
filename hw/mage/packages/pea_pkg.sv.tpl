@@ -55,8 +55,8 @@ package pea_pkg;
   localparam unsigned N_PE_PER_GROUP = N_AGE_PER_STREAM;
   localparam unsigned LOG_N_PE_PER_GROUP = $clog2(N_PE_PER_GROUP);
 
-  localparam unsigned N_IN_PEA = N_BANKS_GROUP*N_BANKS_PER_STREAM;
-  localparam unsigned N_OUT_PEA = N_PE_GROUP*N_PE_PER_GROUP;
+  localparam unsigned N_IN_PEA = N*2;
+  localparam unsigned N_OUT_PEA = N*2;
 %endif
 
 %if activation_computation == 1:
@@ -96,7 +96,7 @@ package pea_pkg;
   
   %if format_part == 1:
     localparam unsigned VEC_MODE_SEL_LSB   = INSTR_SEL_MSB + 1;
-    localparam unsigned VEC_MODE_SEL_MSB   = VEC_MODE_SEL_MSB + 2 - 1;
+    localparam unsigned VEC_MODE_SEL_MSB   = VEC_MODE_SEL_LSB + 2 - 1;
   %endif
   
   %if streaming_cgra == 1 and format_part == 1:
@@ -174,17 +174,19 @@ package pea_pkg;
   } fu_instr_t;
 %elif gemm_computation == 1:
   typedef enum logic[LOG_N_OPERATIONS-1:0]{
-    NOP       = 5'b0000,
-    MUL       = 5'b0001,
-    SUB       = 5'b0010,
-    LSH       = 5'b0011,
-    LRSH      = 5'b0100,
-    ARSH      = 5'b0101,
-    MAX       = 5'b0110,
-    MIN       = 5'b0111,
-    ABS       = 5'b1000,
-    ACC       = 5'b1001,
-    ADD       = 5'b1010
+    NOP       = 5'b00000,
+    MUL       = 5'b00001,
+    SUB       = 5'b00010,
+    LSH       = 5'b00011,
+    LRSH      = 5'b00100,
+    ARSH      = 5'b00101,
+    MAX       = 5'b00110,
+    MIN       = 5'b00111,
+    ABS       = 5'b01000,
+    ACC       = 5'b01001,
+    ADD       = 5'b01010,
+    FW_A      = 5'b01011,
+    FW_B      = 5'b01100
   } fu_instr_t;
 %endif
 
