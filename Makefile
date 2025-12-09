@@ -7,7 +7,7 @@ MAGE_CORE = vlsi:polito:mage-stream
 MAGE_CFG_HJSON ?= config/dae/cfg_dae_4x4_4x2.hjson
 
 ### Regtool ###
-REGTOOL_SCRIPT = /home/alessio.naclerio/polheepo/hw/vendor/x-heep/hw/vendor/pulp_platform_register_interface/vendor/lowrisc_opentitan/util/regtool.py
+REGTOOL_SCRIPT = ./util/regtool.py
 REGTOOL_DEST_DIR = ./hw/mage/configuration
 REGTOOL_SRC_FILE = ./hw/mage/configuration/mage_regs.hjson
 REGTOOL_SW_DEST_DIR = ./sw
@@ -46,6 +46,13 @@ mage-gen:
 	$(PYTHON) $(REGTOOL_SCRIPT) -D $(REGTOOL_SRC_FILE) > $(REGTOOL_SW_DEST_DIR)/mage_regs.h
 
 	util/format-verible;
+
+mage-gen-sw:
+	$(PYTHON) util/mage-gen.py  --mage_cfg $(MAGE_CFG_HJSON) --outdir sw/ --tpl-sv sw/mage.h.tpl 
+	$(PYTHON) util/mage-gen.py  --mage_cfg $(MAGE_CFG_HJSON) --outdir sw/ --tpl-sv sw/mage_params.h.tpl 
+	$(PYTHON) util/mage-gen.py --mage_cfg $(MAGE_CFG_HJSON) --outdir hw/mage/configuration --tpl-sv hw/mage/configuration/mage_regs.hjson.tpl 
+	$(PYTHON) $(REGTOOL_SCRIPT) -r -t $(REGTOOL_DEST_DIR) $(REGTOOL_SRC_FILE)
+	$(PYTHON) $(REGTOOL_SCRIPT) -D $(REGTOOL_SRC_FILE) > $(REGTOOL_SW_DEST_DIR)/mage_regs.h
 
 verible:
 	util/format-verible;

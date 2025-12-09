@@ -23,8 +23,7 @@ module xbar_age_to_banks
     //Output signals to Bank Group
     output logic [N_BNKS-1:0][NBIT_ADDR-1:0] age_dmem_addr_o,
     output logic [N_BNKS-1:0]                age_dmem_bank_o,
-    output logic [N_BNKS-1:0]                age_dmem_we_o,
-    output logic [N_BNKS-1:0]                age_dmem_valid_o
+    output logic [N_BNKS-1:0]                age_dmem_we_o
 );
 
   logic [ N_AGE-1:0][N_BNKS-1:0] age_bank;
@@ -61,13 +60,11 @@ module xbar_age_to_banks
   always_comb begin
     for (int j = 0; j < N_BNKS; j = j + 1) begin
       age_dmem_addr_o[j] = '0;
-      age_dmem_we_o[j] = '0;
-      age_dmem_valid_o[j] = '0;
+      age_dmem_we_o[j]   = '0;
       for (int i = 0; i < N_AGE; i = i + 1) begin
         if (age_bank[i][j] == 1'b1) begin
           age_dmem_addr_o[j] = age_addr_i[i];
-          age_dmem_we_o[j] = age_we[i];
-          age_dmem_valid_o[j] = age_valid_i[i];
+          age_dmem_we_o[j]   = age_we[i];
           break;
         end
       end

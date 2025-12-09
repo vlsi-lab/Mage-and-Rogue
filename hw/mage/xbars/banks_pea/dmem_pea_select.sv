@@ -19,6 +19,7 @@ module dmem_pea_select
     input  logic [        N_AGE-1:0][$clog2(N_AGE)-1:0] age_bank_load_i,
     input  logic [        N_AGE-1:0]                    valid_ls_i,
     //selection for load and store streams
+    output logic                                        valid_o,
     output logic [$clog2(N_AGE)-1:0]                    sel_load_stream_o
 );
 
@@ -29,6 +30,8 @@ module dmem_pea_select
     age_bank_l = age_bank_load_i[reg_load_age_sel_i];
     valid_l    = valid_ls_i[reg_load_age_sel_i];
   end
+
+  assign valid_o = valid_l;
 
   always_comb begin
     if (valid_l == 1'b1) begin

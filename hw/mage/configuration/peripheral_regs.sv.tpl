@@ -61,6 +61,7 @@ module peripheral_regs
     output logic [N_OUT_PEA-1:0][KMEM_SIZE-1:0][${max(m.log(n_pea_cols),2)}-1:0] reg_cfg_sel_out_pea_o,
     output logic [N_AGE_TOT-1:0][KMEM_SIZE-1:0][${max(m.log(n_age_per_stream), 2)}-1:0] reg_cfg_load_age_sel_o,
     output logic [N_BANKS-1:0][KMEM_SIZE-1:0][${max(m.log(n_age_per_stream), 2)}-1:0] reg_cfg_pea_dmem_sel_o,
+    output logic [1:0] reg_block_size_o,
 %endif
 %if streaming_cgra == 1:
     ////////////////////////////////
@@ -120,6 +121,7 @@ module peripheral_regs
     hw2reg.status.start.de = (state_i == DONE) ? 1'b1 : 1'b0;
     hw2reg.status.start.d = 1'b0;
     reg_start_o = reg2hw.status.start.q;
+    reg_block_size_o = reg2hw.block_size.q;
 
     ////////////////////////////////
     //   General Configuration    //

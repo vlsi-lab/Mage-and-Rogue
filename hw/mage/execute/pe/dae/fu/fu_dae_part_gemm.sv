@@ -131,105 +131,93 @@ module fu_dae_part_gemm
   logic is_add_instr;
 
   logic adder_op_b_negate;
-  logic [15:0]
-      adder_op_a_low,
-      adder_op_b_low,
-      adder_op_a_high,
-      adder_op_b_high,
-      operand_b_neg_low,
-      operand_b_neg_high;
-  logic [17:0] adder_in_a_low, adder_in_b_low, adder_in_a_high, adder_in_b_high;
+  logic [31:0] adder_op_a, adder_op_b, operand_b_neg;
+  logic [35:0] adder_in_a, adder_in_b;
   logic [31:0] adder_result;
-  logic [18:0] adder_result_expanded_low, adder_result_expanded_high;
+  logic [36:0] adder_result_expanded;
 
-  assign is_add_instr = (instr_i == SUB || instr_i == ADD || instr_i == ACC || instr_i == ABS || instr_i == MIN || instr_i == MAX);
+  assign is_add_instr = (instr_i == SUB || instr_i == ADD);
 
   assign adder_op_b_negate = (instr_i == SUB);
 
   // prepare operand a
-  assign adder_op_a_low = is_add_instr ? a_i[15:0] : '0;
-  assign adder_op_a_high = is_add_instr ? a_i[31:16] : '0;
+  assign adder_op_a = is_add_instr ? a_i : '0;
 
   // prepare operand b
-  assign adder_op_b_low = is_add_instr ? (adder_op_b_negate ? operand_b_neg_low : b_i[15:0]) : '0;
-  assign adder_op_b_high = is_add_instr ? (adder_op_b_negate ? operand_b_neg_high : b_i[31:16]) : '0;
+  assign adder_op_b = is_add_instr ? (adder_op_b_negate ? operand_b_neg : b_i) : '0;
 
-  assign operand_b_neg_low = is_add_instr ? ~b_i[15:0] : '0;
-  assign operand_b_neg_high = is_add_instr ? ~b_i[31:16] : '0;
+  assign operand_b_neg = is_add_instr ? ~b_i : '0;
 
   // prepare carry
   always_comb begin
     // default is the 32-bit addition case
-    adder_in_a_low[0]      = 1'b1;
-    adder_in_a_low[8:1]    = adder_op_a_low[7:0];
-    adder_in_a_low[9]      = 1'b1;
-    adder_in_a_low[17:10]  = adder_op_a_low[15:8];
-    adder_in_a_high[0]     = adder_result_expanded_low[18];
-    adder_in_a_high[8:1]   = adder_op_a_high[7:0];
-    adder_in_a_high[9]     = 1'b1;
-    adder_in_a_high[17:10] = adder_op_a_high[15:8];
+    adder_in_a[0]     = 1'b1;
+    adder_in_a[8:1]   = adder_op_a[7:0];
+    adder_in_a[9]     = 1'b1;
+    adder_in_a[17:10] = adder_op_a[15:8];
+    adder_in_a[18]    = 1'b1;
+    adder_in_a[26:19] = adder_op_a[23:16];
+    adder_in_a[27]    = 1'b1;
+    adder_in_a[35:28] = adder_op_a[31:24];
 
-    adder_in_b_low[0]      = 1'b0;
-    adder_in_b_low[8:1]    = adder_op_b_low[7:0];
-    adder_in_b_low[9]      = 1'b0;
-    adder_in_b_low[17:10]  = adder_op_b_low[15:8];
-    adder_in_b_high[0]     = 1'b0;
-    adder_in_b_high[8:1]   = adder_op_b_high[7:0];
-    adder_in_b_high[9]     = 1'b0;
-    adder_in_b_high[17:10] = adder_op_b_high[15:8];
+    adder_in_b[0]     = 1'b0;
+    adder_in_b[8:1]   = adder_op_b[7:0];
+    adder_in_b[9]     = 1'b0;
+    adder_in_b[17:10] = adder_op_b[15:8];
+    adder_in_b[18]    = 1'b0;
+    adder_in_b[26:19] = adder_op_b[23:16];
+    adder_in_b[27]    = 1'b0;
+    adder_in_b[35:28] = adder_op_b[31:24];
 
     if (adder_op_b_negate) begin
-      // special case for subtractions and absolute number calculations
-      adder_in_b_low[0] = 1'b1;
+      // special case for subtractions
+      adder_in_b[0] = 1'b1;
 
       if (vec_mode_16) begin
-        adder_in_a_high[0] = 1'b1;
-        adder_in_b_high[0] = 1'b1;
+        adder_in_a[18] = 1'b1;
+        adder_in_b[18] = 1'b1;
       end else if (vec_mode_8) begin
-        adder_in_a_high[0] = 1'b1;
-        adder_in_b_low[9]  = 1'b1;
-        adder_in_b_high[0] = 1'b1;
-        adder_in_b_high[9] = 1'b1;
+        adder_in_a[18] = 1'b1;
+        adder_in_b[9]  = 1'b1;
+        adder_in_b[18] = 1'b1;
+        adder_in_b[27] = 1'b1;
       end
 
     end else if (instr_i == ADD) begin
       // take care of partitioning the adder for the addition case
       if (vec_mode_16) begin
-        adder_in_a_high[0] = 1'b0;
+        adder_in_a[18] = 1'b0;
       end else if (vec_mode_8) begin
-        adder_in_a_low[9]  = 1'b0;
-        adder_in_a_high[0] = 1'b0;
-        adder_in_a_high[9] = 1'b0;
+        adder_in_a[9]  = 1'b0;
+        adder_in_a[18] = 1'b0;
+        adder_in_a[27] = 1'b0;
       end
     end else if (instr_i == MUL && no_vec_mode) begin
-      adder_in_a_low[8:1] = mul_result_16_2_d[7:0];
-      adder_in_a_low[17:10] = mul_result_16_2_d[15:8];
-      adder_in_b_low[8:1] = mul_result_16_3_d[7:0];
-      adder_in_b_low[17:10] = mul_result_16_3_d[15:8];
+      adder_in_a[8:1] = mul_result_16_2_d[7:0];
+      adder_in_a[17:10] = mul_result_16_2_d[15:8];
+      adder_in_b[8:1] = mul_result_16_3_d[7:0];
+      adder_in_b[17:10] = mul_result_16_3_d[15:8];
 
-      adder_in_a_high[8:1] = mul_result_16_1_d[23:16];
-      adder_in_a_high[17:10] = mul_result_16_1_d[31:24];
-      adder_in_b_high[8:1] = adder_result_expanded_low[8:1];
-      adder_in_b_high[17:10] = adder_result_expanded_low[17:10];
+      adder_in_a[18] = 1'b0;
+
+      adder_in_a[26:19] = mul_result_16_1_d[23:16];
+      adder_in_a[35:28] = mul_result_16_1_d[31:24];
+      adder_in_b[26:19] = adder_result_expanded[8:1];
+      adder_in_b[35:28] = adder_result_expanded[17:10];
     end
   end
 
   // actual adder
-  assign adder_result_expanded_low  = (instr_i == ADD || instr_i == SUB || instr_i == ACC || (instr_i == MUL && no_vec_mode)) ? ($signed(
-      adder_in_a_low
+  assign adder_result_expanded  = (instr_i == ADD || instr_i == SUB || (instr_i == MUL && no_vec_mode)) ? ($signed(
+      adder_in_a
   ) + $signed(
-      adder_in_b_low
-  )) : '0;
-  assign adder_result_expanded_high = (instr_i == ADD || instr_i == SUB || instr_i == ACC || (instr_i == MUL && no_vec_mode)) ? ($signed(
-      adder_in_a_high
-  ) + $signed(
-      adder_in_b_high
+      adder_in_b
   )) : '0;
   assign adder_result = {
-    adder_result_expanded_high[17:10],
-    adder_result_expanded_high[8:1],
-    adder_result_expanded_low[17:10],
-    adder_result_expanded_low[8:1]
+    adder_result_expanded[35:28],
+    adder_result_expanded[26:19],
+    adder_result_expanded[17:10],
+    adder_result_expanded[8:1]
   };
 
   ////////////////////////////////
@@ -348,24 +336,17 @@ module fu_dae_part_gemm
         end else if (vec_mode_16) begin
           res_o = {mul_result_16_2[15:0], mul_result_16_1[15:0]};
         end else begin
-          res_o = {adder_result[15:0], mul_result_16_1_d[15:0]};
+          res_o = {adder_result[31:16], mul_result_16_1_d[15:0]};
         end
       end
 
-      ADD: res_o = adder_result;
-      SUB: res_o = adder_result;
-      LSH: res_o = shift_result;
+      ADD:  res_o = adder_result;
+      SUB:  res_o = adder_result;
+      LSH:  res_o = shift_result;
       ARSH: res_o = shift_result;
       LRSH: res_o = shift_result;
       FW_A: res_o = a_i;
       FW_B: res_o = b_i;
-      ABS: res_o = a_i[N_BITS-1] ? adder_result[N_BITS-1:0] : a_i;
-      MAX:
-      res_o = (a_i[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_i[N_BITS-1]) ? b_i : a_i) :
-                                                  ((adder_result[N_BITS-1] == a_i[N_BITS-1]) ? b_i : a_i);
-      MIN:
-      res_o = (a_i[N_BITS-1] == 1'b0) ? ((adder_result[N_BITS-1] != a_i[N_BITS-1]) ? a_i : b_i) :
-                                                  ((adder_result[N_BITS-1] == a_i[N_BITS-1]) ? a_i : b_i);
 
       default: res_o = 0;
     endcase

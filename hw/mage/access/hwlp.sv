@@ -116,7 +116,7 @@ module hwlp
           loop_vars[3] <= reg_loop_vars_i[3].iv;
           end_lp <= 1'b1;
         end else if (end_condition_lp[0] & end_condition_lp[1] & end_condition_lp[2]) begin
-          loop_vars[3] <= loop_vars[3] + reg_loop_vars_i[0].inc;
+          loop_vars[3] <= loop_vars[3] + reg_loop_vars_i[3].inc;
           end_lp <= 1'b0;
         end
 

@@ -36,6 +36,7 @@ module mage_top
     //                   DAE CGRA Configuration                   //
     ////////////////////////////////////////////////////////////////
     output state_t                                        state_o,
+    output logic [1:0]                                    reg_block_size_o,
     /* Interface towards internal SpM */
     output logic     [N_BANKS-1:0]                        dmem_req_o,
     output logic     [N_BANKS-1:0]                        dmem_we_o,
@@ -115,8 +116,7 @@ module mage_top
   ////////////////////////////////////////////////////////////////
   //          Crossbar between AGU and Multi-Bank SpM           //
   ////////////////////////////////////////////////////////////////
-  logic [N_AGE_TOT-1:0] agu_dmem_valid;
-  logic [N_AGE_TOT-1:0] agu_dmem_valid_d;
+  logic [N_AGE_TOT-1:0] pea_data_valid;
 %endif
 %if streaming_cgra == 1:
   ////////////////////////////////////////////////////////////////
@@ -173,6 +173,7 @@ module mage_top
 %if dae_cgra == 1:
       .state_i(state),
       .reg_start_o(reg_start),
+      .reg_block_size_o(reg_block_size_o),
       ////////////////////////////////////////////////////////////////
       //                 General Configuration Bits                 //
       ////////////////////////////////////////////////////////////////
@@ -319,7 +320,7 @@ module mage_top
 %endif
 %if dae_cgra == 1:
       .start_d_i(start_d),
-      .in_data_valid_i(agu_dmem_valid_d),
+      .in_data_valid_i(pea_data_valid),
       .sel_output_i(cfg_sel_pea_output),
       .pea_data_i(pea_inputs),
       .acc_match_i(agu_acc_match),
@@ -403,6 +404,7 @@ module mage_top
 
   assign pea_inputs[${idx}] = dmem_rdata_i[${idx}];
   assign dmem_wdata_o[${idx}] = pea_outputs[${idx}];
+  assign pea_data_valid[${idx}] = agu_valid_ls[${idx}];
   // assign cfg_sel_dmem_pea[${idx}] = '0;
 
   <% idx += 1%>
@@ -429,7 +431,8 @@ module mage_top
       .reg_load_age_sel_i(load_age_sel[${idx}][0]),
       .age_bank_load_i   ({agu_bank_ls[${idx+1}][0], agu_bank_ls[${idx}][0]}),
       .valid_ls_i        ({agu_valid_ls[${idx+1}], agu_valid_ls[${idx}]}),
-      .sel_load_stream_o (cfg_sel_dmem_pea[${idx}][0])
+      .sel_load_stream_o (cfg_sel_dmem_pea[${idx}][0]),
+        .valid_o(pea_data_valid[${idx}])
   );
 
   dmem_pea_select #(
@@ -438,7 +441,8 @@ module mage_top
       .reg_load_age_sel_i(load_age_sel[${idx+1}][0]),
       .age_bank_load_i   ({agu_bank_ls[${idx+1}][0], agu_bank_ls[${idx}][0]}),
       .valid_ls_i        ({agu_valid_ls[${idx+1}], agu_valid_ls[${idx}]}),
-      .sel_load_stream_o (cfg_sel_dmem_pea[${idx+1}][0])
+      .sel_load_stream_o (cfg_sel_dmem_pea[${idx+1}][0]),
+        .valid_o(pea_data_valid[${idx+1}])
   );
 
   <% idx += 2%>
@@ -466,7 +470,8 @@ module mage_top
         .reg_load_age_sel_i(load_age_sel[${idx+j}]),
         .age_bank_load_i   ({agu_bank_ls[${idx+3}][1:0], agu_bank_ls[${idx+2}][1:0], agu_bank_ls[${idx+1}][1:0], agu_bank_ls[${idx}][1:0]}),
         .valid_ls_i        ({agu_valid_ls[${idx+3}],   agu_valid_ls[${idx+2}],   agu_valid_ls[${idx+1}],   agu_valid_ls[${idx}]}),
-        .sel_load_stream_o (cfg_sel_dmem_pea[${idx+j}])
+        .sel_load_stream_o (cfg_sel_dmem_pea[${idx+j}]),
+        .valid_o(pea_data_valid[${idx+j}])
     );
   %endfor
   <% idx += 4%>
@@ -490,12 +495,10 @@ module mage_top
       dmem_addr_o[${idx}]    = agu_addr[${idx}];
       dmem_we_o[${idx}]      = ~agu_lns[${idx}];
       dmem_req_o[${idx}]     = |agu_bank[${idx}];
-      agu_dmem_valid[${idx}] = agu_valid[${idx}];
     end else begin
       dmem_addr_o[${idx}]    = '0;
       dmem_we_o[${idx}]      = '0;
       dmem_req_o[${idx}]     = '0;
-      agu_dmem_valid[${idx}] = '0;
     end
   end
 
@@ -516,8 +519,7 @@ module mage_top
       .age_bank_i       ({agu_bank[${idx+1}][1:0],  agu_bank[${idx}][1:0]}),
       .age_dmem_addr_o  ({dmem_addr_o[${idx+1}],    dmem_addr_o[${idx}]}),
       .age_dmem_bank_o  ({dmem_req_o[${idx+1}],     dmem_req_o[${idx}]}),
-      .age_dmem_we_o    ({dmem_we_o[${idx+1}],      dmem_we_o[${idx}]}),
-      .age_dmem_valid_o ({agu_dmem_valid[${idx+1}], agu_dmem_valid[${idx}]})
+      .age_dmem_we_o    ({dmem_we_o[${idx+1}],      dmem_we_o[${idx}]})
   );
   
   <% idx += 2%>
@@ -537,22 +539,13 @@ module mage_top
       .age_bank_i       ({agu_bank[${idx+3}][3:0],  agu_bank[${idx+2}][3:0],  agu_bank[${idx+1}][3:0],  agu_bank[${idx}][3:0]}),
       .age_dmem_addr_o  ({dmem_addr_o[${idx+3}],    dmem_addr_o[${idx+2}],    dmem_addr_o[${idx+1}],    dmem_addr_o[${idx}]}),
       .age_dmem_bank_o  ({dmem_req_o[${idx+3}],     dmem_req_o[${idx+2}],     dmem_req_o[${idx+1}],     dmem_req_o[${idx}]}),
-      .age_dmem_we_o    ({dmem_we_o[${idx+3}],      dmem_we_o[${idx+2}],      dmem_we_o[${idx+1}],      dmem_we_o[${idx}]}),
-      .age_dmem_valid_o ({agu_dmem_valid[${idx+3}], agu_dmem_valid[${idx+2}], agu_dmem_valid[${idx+1}], agu_dmem_valid[${idx}]})
+      .age_dmem_we_o    ({dmem_we_o[${idx+3}],      dmem_we_o[${idx+2}],      dmem_we_o[${idx+1}],      dmem_we_o[${idx}]})
   );
 
   <% idx += 4%>
   %endif
 %endfor
 
-  // copy of valid_ls that could be removed, it is used as response from memory, which is assumed to be one cc later that req
-  always_ff @(posedge clk_i or negedge rst_n_i) begin
-    if (~rst_n_i) begin
-      agu_dmem_valid_d <= '0;
-    end else begin
-      agu_dmem_valid_d <= agu_dmem_valid;
-    end
-  end
 %endif
 %if streaming_cgra == 1:
 

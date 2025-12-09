@@ -5,6 +5,12 @@
 
 #include "mage_regs.h"
 
+%if format_full == 1:
+#define MAGE_PARTITIONED 0
+%else:
+#define MAGE_PARTITIONED 1
+%endif
+
 // kernel memory size
 #define KMEM_SIZE ${kernel_len}
 // number of rows and columns of the PEA array

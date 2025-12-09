@@ -41,6 +41,7 @@ module hwlp_rou
 );
 
   logic [N_AGE_TOT-1:0][N_LP-1+1:0][NBIT_LP_IV-1:0] stream_hwlp;
+  logic [N_AGE_TOT-1:0][N_LP-1+1:0][NBIT_LP_IV-1:0] stream_hwlp_acc_store;
   logic [N_AGE_TOT-1:0] is_constraint_iv_valid;
   logic [N_AGE_TOT-1:0] is_pea_acc_constraint_valid;
   logic [N_AGE_TOT-1:0][N_IVS-1:0][NBIT_LP_IV-1:0] hwlp_rou;
@@ -48,6 +49,7 @@ module hwlp_rou
 
   logic [N_AGE_TOT-1:0][N_LP-1:0] condition_mask;
   logic [N_AGE_TOT-1:0][N_LP-1:0] zero_condition;
+  logic [N_AGE_TOT-1:0][N_LP-1:0] zero_condition_acc_store;
   logic exec;
 
   assign exec = state_i == pea_pkg::EXEC;
@@ -59,6 +61,17 @@ module hwlp_rou
     for (int i = 0; i < N_AGE_TOT; i = i + 1) begin
       stream_hwlp[i][N_LP-1:0] = hwlp_rf_i[hwlp_sel_i[i]];
       stream_hwlp[i][N_LP] = '0;
+    end
+  end
+
+  always_comb begin
+    for (int i = 0; i < N_AGE_TOT; i = i + 1) begin
+      if (iv_constraints_sel_i[i] == 3'b100 || is_age_active_i[i] == 1'b0) begin
+        stream_hwlp_acc_store[i] = '0;
+      end else begin
+        stream_hwlp_acc_store[i][N_LP-1:0] = hwlp_rf_i[reg_age_acc_hwlp_sel_i[i]];
+        stream_hwlp_acc_store[i][N_LP] = '0;
+      end
     end
   end
 
@@ -92,6 +105,7 @@ module hwlp_rou
     for (int i = 0; i < N_AGE_TOT; i = i + 1) begin
       for (int k = 0; k < N_LP; k = k + 1) begin
         zero_condition[i][k] = |(stream_hwlp[i][k]);
+        zero_condition_acc_store[i][k] = |(stream_hwlp_acc_store[i][k]);
       end
     end
   end
@@ -107,7 +121,7 @@ module hwlp_rou
         // If the age is not active, the ivs for the stream are unconstrained (CHECK)
         is_constraint_iv_valid[i] = 1'b1;
         is_pea_acc_constraint_valid[i] = 1'b0;
-        condition_mask = '0;
+        condition_mask[i] = '0;
       end else begin
         condition_mask[i] = (1 << (iv_constraints_sel_i[i])) - 1;
         // Constrained IVs for the stream:
@@ -122,7 +136,10 @@ module hwlp_rou
           //  AND
           //  -> the bits set in condition_mask of the AGE are also set in the end condition entry in the related RF, which means that the loop IVs that we want to be zero are zero
           is_pea_acc_constraint_valid[i] = (hwlp_rf_i[reg_age_acc_hwlp_sel_i[i]][iv_constraints_sel_i[i]] == 0) &&
-                                                                 (~|(condition_mask[i] & ~(hwlp_end_condition_i[reg_age_acc_hwlp_sel_i[i]])));
+                                                         ((zero_condition_acc_store[i] & condition_mask[i]) == '0);
+
+          is_constraint_iv_valid[i] = (stream_hwlp[i][iv_constraints_sel_i[i]] == iv_constraints_i[i]) &&
+                                                          (~|(condition_mask[i] & ~(hwlp_end_condition_i[hwlp_sel_i[i]])));
         end else begin
           is_pea_acc_constraint_valid[i] = 1'b0;
         end

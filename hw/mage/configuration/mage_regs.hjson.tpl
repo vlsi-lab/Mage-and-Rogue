@@ -84,6 +84,18 @@
         },
       ]
     },
+    { name:     "BLOCK_SIZE",
+      desc:     "Initial Loop Bounds for Hardware Loops",
+      swaccess: "rw",
+      hwaccess: "hro",
+      resval:   0,
+      fields: [
+        { bits: "1:0", 
+          name: "BS",
+          desc: "Initial Loop Bound for loop 0" 
+        },
+      ]
+    },
     { name:     "FLB_HWL",
       desc:     "Final Loop Bounds for Hardware Loops",
       swaccess: "rw",
