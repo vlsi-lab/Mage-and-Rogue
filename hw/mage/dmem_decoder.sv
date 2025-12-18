@@ -14,6 +14,7 @@ module dmem_decoder
     input                                               clk_i,
     input                                               rst_n_i,
     input  state_t                                      state_i,
+    input  logic   [        1:0]                        reg_block_size_i,
     /* CGRA to internal SpM */
     input  logic   [N_BANKS-1:0]                        agu_dmem_req_i,
     input  logic   [N_BANKS-1:0]                        agu_dmem_we_i,
@@ -59,16 +60,35 @@ module dmem_decoder
   always_comb begin
 
     active_banks = '0;
-    addr_to_bank = addr_lrs_2[$clog2(BANK_SIZE)-1:0];
+    addr_to_bank = '0;
 
-    active_banks[0] = (addr_lrs_2[13:10] == 0) ? 1'b1 : 1'b0;
-    active_banks[1] = (addr_lrs_2[13:10] == 1) ? 1'b1 : 1'b0;
-    active_banks[2] = (addr_lrs_2[13:10] == 2) ? 1'b1 : 1'b0;
-    active_banks[3] = (addr_lrs_2[13:10] == 3) ? 1'b1 : 1'b0;
-    active_banks[4] = (addr_lrs_2[13:10] == 4) ? 1'b1 : 1'b0;
-    active_banks[5] = (addr_lrs_2[13:10] == 5) ? 1'b1 : 1'b0;
-    active_banks[6] = (addr_lrs_2[13:10] == 6) ? 1'b1 : 1'b0;
-    active_banks[7] = (addr_lrs_2[13:10] == 7) ? 1'b1 : 1'b0;
+    case (reg_block_size_i)
+      2'b00: begin
+        addr_to_bank = addr_lrs_2[$clog2(BANK_SIZE)-1:0];
+        active_banks[0] = (addr_lrs_2[13:10] == 0) ? 1'b1 : 1'b0;
+        active_banks[1] = (addr_lrs_2[13:10] == 1) ? 1'b1 : 1'b0;
+        active_banks[2] = (addr_lrs_2[13:10] == 2) ? 1'b1 : 1'b0;
+        active_banks[3] = (addr_lrs_2[13:10] == 3) ? 1'b1 : 1'b0;
+      end
+
+      2'b01: begin
+        addr_to_bank = addr_lrs_2[$clog2(BANK_SIZE)-1:0] >> 1;
+        active_banks[0] = ((addr_lrs_2[13:10] == 0 || addr_lrs_2[13:10] == 1) && addr_lrs_2[0] == 1'b0) ? 1'b1 : 1'b0;
+        active_banks[1] = ((addr_lrs_2[13:10] == 1 || addr_lrs_2[13:10] == 0) && addr_lrs_2[0] == 1'b1) ? 1'b1 : 1'b0;
+        active_banks[2] = ((addr_lrs_2[13:10] == 2 || addr_lrs_2[13:10] == 3) && addr_lrs_2[0] == 1'b0) ? 1'b1 : 1'b0;
+        active_banks[3] = ((addr_lrs_2[13:10] == 3 || addr_lrs_2[13:10] == 2) && addr_lrs_2[0] == 1'b1) ? 1'b1 : 1'b0;
+      end
+
+      2'b10: begin
+        addr_to_bank = addr_lrs_2[$clog2(BANK_SIZE)-1:0] >> 2;
+        active_banks[0] = ((addr_lrs_2[13:10] == 0 || addr_lrs_2[13:10] == 1) && addr_lrs_2[0] == 1'b0) ? 1'b1 : 1'b0;
+        active_banks[1] = ((addr_lrs_2[13:10] == 1 || addr_lrs_2[13:10] == 0) && addr_lrs_2[0] == 1'b1) ? 1'b1 : 1'b0;
+        active_banks[2] = ((addr_lrs_2[13:10] == 2 || addr_lrs_2[13:10] == 3) && addr_lrs_2[0] == 1'b0) ? 1'b1 : 1'b0;
+        active_banks[3] = ((addr_lrs_2[13:10] == 3 || addr_lrs_2[13:10] == 2) && addr_lrs_2[0] == 1'b1) ? 1'b1 : 1'b0;
+      end
+
+      default: active_banks = '0;
+    endcase
 
   end
 
@@ -78,21 +98,13 @@ module dmem_decoder
     if (is_dmem_address == 1'b1) begin
 
       if (active_banks[0]) begin
-        ext_dmem_req = {7'd0, ext_dmem_req_i};
+        ext_dmem_req = {3'd0, ext_dmem_req_i};
       end else if (active_banks[1]) begin
-        ext_dmem_req = {6'b0, ext_dmem_req_i, 1'b0};
+        ext_dmem_req = {2'b0, ext_dmem_req_i, 1'b0};
       end else if (active_banks[2]) begin
-        ext_dmem_req = {5'b0, ext_dmem_req_i, 2'b0};
+        ext_dmem_req = {1'b0, ext_dmem_req_i, 2'b0};
       end else if (active_banks[3]) begin
-        ext_dmem_req = {4'b0, ext_dmem_req_i, 3'b0};
-      end else if (active_banks[4]) begin
-        ext_dmem_req = {3'b0, ext_dmem_req_i, 4'b0};
-      end else if (active_banks[5]) begin
-        ext_dmem_req = {2'b0, ext_dmem_req_i, 5'b0};
-      end else if (active_banks[6]) begin
-        ext_dmem_req = {1'b0, ext_dmem_req_i, 6'b0};
-      end else if (active_banks[7]) begin
-        ext_dmem_req = {ext_dmem_req_i, 7'b0};
+        ext_dmem_req = {ext_dmem_req_i, 3'b0};
       end else begin
         ext_dmem_req = '0;
       end

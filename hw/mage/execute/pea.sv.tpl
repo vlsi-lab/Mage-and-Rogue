@@ -55,7 +55,9 @@ module pea
     // Constant from configuration registers
     input  logic   [        N-1:0][     M-1:0][             31:0]   reg_constant_op_i
 );
-  
+
+%if dae_cgra == 1:
+
   ////////////////////////////////
   //     I/O Values of PEs      //
   ////////////////////////////////
@@ -64,14 +66,13 @@ module pea
   logic [     N_BITS-1:0]             out_data_pe${r}${c};  
       %endfor
   %endfor
-
+  
   %for r in range(n_pea_rows):
       %for c in range(n_pea_cols):
   logic [N_INPUTS_PE-1:0][N_BITS-1:0] in_data_pe${r}${c};  
       %endfor
   %endfor
-  
-%if dae_cgra == 1:
+
   ////////////////////////////////
   //    DAE: I/O of PEA Rows    //
   ////////////////////////////////
@@ -82,6 +83,21 @@ module pea
 %endif
 
 %if streaming_cgra == 1:
+  ////////////////////////////////
+  //     I/O Values of PEs      //
+  ////////////////////////////////
+  %for r in range(n_pea_rows):
+      %for c in range(n_pea_cols):
+  logic [     N_BITS-1:0]             out_data_pe${r}${c};  
+      %endfor
+  %endfor
+  
+  %for r in range(n_pea_rows):
+      %for c in range(n_pea_cols):
+  logic [N_INPUTS_PE-4:0][N_BITS-1:0] in_data_pe${r}${c};  
+      %endfor
+  %endfor
+
   /////////////////////////////////
   //Streaming: I/O of PEA Columns//
   /////////////////////////////////
@@ -238,7 +254,7 @@ logic out_delay_op_valid${r}${c};
   assign in_data_pe${r}${c}[CONSTANT] = reg_constant_op_i[${r}][${c}]; <% k = 1 %> <% pe = 0 %>
       %for i in range(len(pea_in_stream_placement[c])):
         %if pea_in_stream_placement[c][i] != None:
-  assign in_data_pe${r}${c}[STREAM_IN_${k}] = stream_data_in_reg[${pea_in_stream_placement[c][i]}]; <% k = k + 1 %> 
+  assign in_data_pe${r}${c}[STREAM_IN${k-1}] = stream_data_in_reg[${pea_in_stream_placement[c][i]}]; <% k = k + 1 %> 
         %else:
   assign in_data_pe${r}${c}[${k}] = '0; <% k = k + 1 %> 
         %endif  

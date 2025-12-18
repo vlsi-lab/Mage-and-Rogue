@@ -126,7 +126,7 @@ module age
 `ifndef FPGA
   // PE Clock-gating
   logic clk_cg_en;
-  assign clk_cg_en = ~active_i;
+  assign clk_cg_en = active_i;
   tc_clk_gating pe_clk_gating_cell (
       .clk_i(clk_i),
       .en_i(clk_cg_en),

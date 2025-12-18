@@ -109,17 +109,17 @@ package pea_pkg;
   
   %if activation_computation == 1 and streaming_cgra == 1:
     localparam unsigned DELAY_PE_SEL_LSB    = RF_SEL_MSB + 1;
-    localparam unsigned DELAY_PE_SEL_MSB    = INSTR_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
+    localparam unsigned DELAY_PE_SEL_MSB    = DELAY_PE_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
     localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
   %elif activation_computation == 1 and format_part == 1:
     localparam unsigned DELAY_PE_SEL_LSB    = VEC_MODE_SEL_MSB + 1;
-    localparam unsigned DELAY_PE_SEL_MSB    = INSTR_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
+    localparam unsigned DELAY_PE_SEL_MSB    = DELAY_PE_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
     localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
   %elif activation_computation == 1:
     localparam unsigned DELAY_PE_SEL_LSB    = INSTR_SEL_MSB + 1;
-    localparam unsigned DELAY_PE_SEL_MSB    = INSTR_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
+    localparam unsigned DELAY_PE_SEL_MSB    = DELAY_PE_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
     localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
   %endif

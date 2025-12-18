@@ -117,15 +117,15 @@ module pe_s_full_gemm
     if (acc_loopback && fu_instr != SHACC) begin
       mux_sel_a = SELF;
     end else begin
-      mux_sel_a = pe_mux_sel_t'(ctrl_pe_i[END_CFG_MUX_SEL_0 : 0]);
+      mux_sel_a = pe_mux_sel_t'(ctrl_pe_i[OP_A_SEL_MSB : OP_A_SEL_LSB]);
     end
-    mux_sel_b = pe_mux_sel_t'(ctrl_pe_i[END_CFG_MUX_SEL_1 : END_CFG_MUX_SEL_0+1]);
+    mux_sel_b = pe_mux_sel_t'(ctrl_pe_i[OP_B_SEL_MSB : OP_B_SEL_LSB]);
   end
 
-  assign fu_instr = fu_instr_t'(ctrl_pe_i[END_CFG_OP : END_CFG_MUX_SEL_1+1]);
-  assign rf_cfg = ctrl_pe_i[END_RF_CFG : END_CFG_OP+1];
-  assign delay_pe_mux_sel = delay_pe_mux_sel_t'(ctrl_pe_i[END_DELAY_PE_MUX_SEL : END_RF_CFG+1]);
-  assign delay_pe_op_mux_sel  = delay_pe_op_mux_sel_t'(ctrl_pe_i[END_DELAY_PE_OP_MUX_SEL : END_DELAY_PE_MUX_SEL + 1]);
+  assign fu_instr = fu_instr_t'(ctrl_pe_i[INSTR_SEL_MSB : INSTR_SEL_LSB]);
+  assign rf_cfg = ctrl_pe_i[RF_SEL_MSB : RF_SEL_LSB];
+  assign delay_pe_mux_sel = delay_pe_mux_sel_t'(ctrl_pe_i[DELAY_PE_SEL_MSB : DELAY_PE_SEL_LSB]);
+  assign delay_pe_op_mux_sel  = delay_pe_op_mux_sel_t'(ctrl_pe_i[DELAY_PE_OP_SEL_MSB : DELAY_PE_OP_SEL_LSB]);
 
   /*
     The loopback for SHACC is different, since we cannot waste one source operand for the loopback operand,
