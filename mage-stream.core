@@ -21,12 +21,12 @@ filesets:
     - hw/mage/configuration/mage_reg_pkg.sv
     - hw/mage/configuration/mage_reg_top.sv
     - hw/mage/configuration/peripheral_regs.sv
-    - hw/mage/execute/pe/fu/div/r_div_cell.sv
-    - hw/mage/execute/pe/fu/div/r_div_stage.sv
-    - hw/mage/execute/pe/fu/div/r_div.sv
-    - hw/mage/execute/pe/fu/div/div_wrapper.sv
-    - hw/mage/execute/pe/fu/div/r_div_pipe.sv
-    - hw/mage/execute/pe/fu/div/div_wrapper_pipe.sv
+    - hw/mage/execute/pe/div/r_div_cell.sv
+    - hw/mage/execute/pe/div/r_div_stage.sv
+    - hw/mage/execute/pe/div/r_div.sv
+    - hw/mage/execute/pe/div/div_wrapper.sv
+    - hw/mage/execute/pe/div/r_div_pipe.sv
+    - hw/mage/execute/pe/div/div_wrapper_pipe.sv
     - hw/mage/execute/pe/streaming/fu/fu_s_full_gemm.sv
     - hw/mage/execute/pe/streaming/fu/fu_s_full_act_serdiv.sv
     - hw/mage/execute/pe/streaming/fu/fu_s_full_act_pipediv.sv

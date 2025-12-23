@@ -70,6 +70,9 @@ module peripheral_regs
     output logic [1:0] reg_rf_value_o,
     output logic [1:0] reg_cols_grouping_o,
     output logic [N_DMA_CH-1:0][1:0] reg_sync_dma_ch_trans_o,
+    %if r_fifo_synch_placement_type == "g4":
+    output logic [1:0] reg_r_fifo_synch_groups_o,
+    %endif
     output logic [N_DMA_CH-1:0] reg_dma_rnw_o,
     output logic [N_DMA_CH-1:0][31:0] reg_trans_size_dma_ch_o,
     output logic [N_DMA_CH-1:0][15:0] reg_trans_size_sync_dma_ch_o,
@@ -228,6 +231,9 @@ module peripheral_regs
     ////////////////////////////////
     reg_cols_grouping_o = reg2hw.cols_grouping.q;
     reg_rf_value_o = reg2hw.rf_val.q;
+    %if r_fifo_synch_placement_type == "g4":
+    reg_r_fifo_synch_groups_o = reg2hw.r_fifo_synch_groups.q[1:0];
+    %endif
   %for i in range(n_dma_ch):
     reg_dma_rnw_o[${i}] = reg2hw.dma_rnw.q[${i}];
     reg_sync_dma_ch_trans_o[${i}] = reg2hw.sync_dma_ch_trans.q[${2*i+1}:${2*i}];

@@ -19,7 +19,7 @@
 
 %if dae_cgra == 1:
 ////////////////////////////////////////////////////////////////
-//                          DAE Mage                          //
+//                            Mage                            //
 ////////////////////////////////////////////////////////////////
 // number of hardware loops
 #define MAGE_NUM_HWLP 4
@@ -39,8 +39,32 @@
 
 %if streaming_cgra == 1:
 ////////////////////////////////////////////////////////////////
-//                          DAE Mage                          //
+//                           Rogue                            //
 ////////////////////////////////////////////////////////////////
+
+%if n_pea_rows == 2:
+    %if n_pea_cols == 2:
+#define ROGUE_2x2_2x2 1
+    %elif n_pea_cols == 4:
+        %if r_fifo_synch_placement_type == "g2":
+#define ROGUE_2x4_2x2 1
+        %elif r_fifo_synch_placement_type == "g4":
+#define ROGUE_2x4_4x4 1
+        %endif
+    %endif
+%elif n_pea_rows == 4:
+    %if n_pea_cols == 2:
+#define ROGUE_4x2_2x2 1
+    %elif n_pea_cols == 4:
+        %if r_fifo_synch_placement_type == "g2":
+#define ROGUE_4x4_2x2 1
+        %elif r_fifo_synch_placement_type == "g4":
+#define ROGUE_4x4_4x4 1
+        %endif
+    %endif
+%endif
+
+
 %endif
 #ifdef __cplusplus
 }

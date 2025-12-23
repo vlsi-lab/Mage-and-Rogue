@@ -52,6 +52,10 @@
         is_div_pipe: 0,
         in_stream_dma_ch_placement : [[0], [1], [2], [3]],
         out_stream_pea_dout_placement : [[0, 1], [0, 1], [2, 3], [2, 3]],
+        r_fifo_synch_placement_type : "g2",
+        r_fifo_synch_placement_g2 : [[0, 1], [1, 0], [2, 3], [3, 2]],
+        r_fifo_synch_placement_g3 : [[0, 1, 2], [1, 0, 2], [2, 0, 1], [3, 2, 1]],
+        r_fifo_synch_placement_g4 : [[0, 1, 2, 3], [1, 0, 2, 3], [2, 3, 0, 1], [3, 2, 0, 1]],
         pea_in_stream_placement : [[0, 1], [1, 0], [2, 3], [3, 2]],
     },
 

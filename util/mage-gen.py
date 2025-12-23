@@ -153,6 +153,10 @@ def main():
         "acc_pes"                          : cfg['dae_params']['acc_pes'],
 
         "n_pe_in_stream"                   : cfg['streaming_params']['n_pe_in_stream'],
+        "r_fifo_synch_placement_g2"        : cfg['streaming_params']['r_fifo_synch_placement_g2'],
+        "r_fifo_synch_placement_g3"        : cfg['streaming_params']['r_fifo_synch_placement_g3'],
+        "r_fifo_synch_placement_g4"        : cfg['streaming_params']['r_fifo_synch_placement_g4'],
+        "r_fifo_synch_placement_type"      : cfg['streaming_params']['r_fifo_synch_placement_type'],
         "pea_in_stream_placement"          : cfg['streaming_params']['pea_in_stream_placement'],
         "n_dma_ch"                         : cfg['streaming_params']['n_dma_ch'],
         "n_in_stream"                      : cfg['streaming_params']['n_in_stream'],

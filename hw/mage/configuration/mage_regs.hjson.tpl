@@ -395,6 +395,17 @@
       },
       ],
     },
+    %if r_fifo_synch_placement_type == "g4":
+    { name: "R_FIFO_SYNCH_GROUPS",
+      desc: "It makes the related DMA channel (bit 0 -> dma ch 0) work in sync with its stream mate in pea_in_stream_placement based on TRANS_SIZE_SYNC_DMA_CH_{i}. If bit 0 is set to 1, DMA ch 0 will be syncronized to its stream mate based on TRANS_SIZE_SYNC_DMA_CH_{mate}",  
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+      { bits: "1:0",
+      },
+      ],
+    },
+    %endif
     { name: "COLS_GROUPING",
       desc: "If set to 1, each column of Mage works in streaming separately from all the others. If 2, columns are grouped in 2 groups of 2 each. If 0, all columns are grouped together.",
       swaccess: "rw",

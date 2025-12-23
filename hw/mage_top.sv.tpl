@@ -133,6 +133,9 @@ module mage_top
   //                 Stream Peripheral Registers                //
   ////////////////////////////////////////////////////////////////
   logic [N_DMA_CH-1:0][1:0] reg_sync_dma_ch_trans;
+%if r_fifo_synch_placement_type == "g4":
+  logic [1:0] reg_r_fifo_synch_groups;
+%endif
   logic [N_DMA_CH-1:0][15:0] reg_trans_size_sync_dma_ch;
   logic [N_DMA_CH-1:0][31:0] reg_trans_size_dma_ch;
   logic [1:0] reg_cols_grouping;
@@ -211,6 +214,9 @@ module mage_top
       .reg_trans_size_dma_ch_o(reg_trans_size_dma_ch),
       .reg_trans_size_sync_dma_ch_o(reg_trans_size_sync_dma_ch),
       .reg_sync_dma_ch_trans_o(reg_sync_dma_ch_trans),
+%if r_fifo_synch_placement_type == "g4":
+      .reg_r_fifo_synch_groups_o(reg_r_fifo_synch_groups),
+%endif
       .reg_sel_out_col_pea_o(reg_stream_sel_out_pea),
       .reg_acc_value_pe_o(reg_acc_value_pe),
       .reg_pea_rf_de_i(reg_rf_de_pea),
@@ -564,6 +570,9 @@ module mage_top
       .fifo_req_i(fifo_req_i),
       .fifo_resp_o(fifo_resp_o),
       .reg_cols_grouping_i(reg_cols_grouping),
+%if r_fifo_synch_placement_type == "g4":
+      .reg_r_fifo_synch_groups_i(reg_r_fifo_synch_groups),
+%endif
       .reg_dma_rnw_i(reg_dma_rnw),
 %if out_stream_xbar == 1:
       .reg_out_stream_sel_i(reg_out_stream_sel),

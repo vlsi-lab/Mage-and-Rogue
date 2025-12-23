@@ -25,6 +25,9 @@ module streaming_interface
     input logic [N_DMA_CH-1:0] reg_dma_rnw_i,
 
     // Transaction sizes
+    %if r_fifo_synch_placement_type == "g4":
+    input logic [1:0] reg_r_fifo_synch_groups_i,
+    %endif
     input logic [N_DMA_CH-1:0][31:0] reg_trans_size_dma_ch_i,
     input logic [N_DMA_CH-1:0][1:0] reg_sync_dma_ch_trans_i,
     input logic [N_DMA_CH-1:0][15:0] reg_trans_size_sync_dma_ch_i,
@@ -51,6 +54,10 @@ module streaming_interface
   // Transaction counters
   logic [N_DMA_CH-1:0][31:0] trans_counter;
   logic [N_DMA_CH-1:0][15:0] trans_counter_sync;
+  logic [N_DMA_CH-1:0] trans_counter_sync_equal;
+  logic [N_DMA_CH-1:0] trans_counter_sync_equal_1;
+
+  logic [N_DMA_CH-1:0] reg_sync_dma_ch_trans_zero;
 
   // Popping sync signal
   logic [N_DMA_CH-1:0] pop_sync;
@@ -192,7 +199,14 @@ module streaming_interface
     end
   end
 
-%if len(pea_in_stream_placement[0]) != 1:
+
+%for c in range(n_pea_cols):
+  assign trans_counter_sync_equal[${c}] = (trans_counter_sync[${c}] == reg_trans_size_sync_dma_ch_i[${c}]);
+  assign trans_counter_sync_equal_1[${c}] = (trans_counter_sync[${c}] == (reg_trans_size_sync_dma_ch_i[${c}] - 1));
+  assign reg_sync_dma_ch_trans_zero[${c}] = (|reg_sync_dma_ch_trans_i[${c}]) == 1'b0; 
+%endfor
+
+%if r_fifo_synch_placement_type == "g2":
   /*
     read fifos popping synchronization:
       -> if the popping from read fifo i has to be synched with its "mate" j, 2 cases are possible:
@@ -208,14 +222,71 @@ module streaming_interface
     pop_sync = '0;
 
 %for c in range(n_pea_cols):
-  <% a = pea_in_stream_placement[c][0] %>
-  <% b = pea_in_stream_placement[c][1] %>
+  <% a = r_fifo_synch_placement_g2[c][0] %>
+  <% b = r_fifo_synch_placement_g2[c][1] %>
     if (reg_sync_dma_ch_trans_i[${a}] == 2'b01) begin
-      pop_sync[${b}] = (trans_counter_sync[${b}] == reg_trans_size_sync_dma_ch_i[${b}]);
+      pop_sync[${b}] = trans_counter_sync_equal[${b}];
     end else if (reg_sync_dma_ch_trans_i[${a}] == 2'b10) begin
-      pop_sync[${b}] = (trans_counter_sync[${b}] == reg_trans_size_sync_dma_ch_i[${b}] || trans_counter_sync[${b}] == reg_trans_size_sync_dma_ch_i[${b}] - 1);
+      pop_sync[${b}] = (trans_counter_sync_equal[${b}] || trans_counter_sync_equal_1[${b}]);
     end
 %endfor
+
+%elif r_fifo_synch_placement_type == "g4":
+
+  /*
+    read fifos popping synchronization:
+      -> if the popping from read fifo i has to be synched with its "mate" j, 2 cases are possible:
+        -> reg_sync_dma_ch_trans_i[i] == 2'b01:
+          -> the sync signal for the "mate" j is asserted whenever trans_counter_sync[j] == reg_trans_size_sync_dma_ch_i[j]
+        -> reg_sync_dma_ch_trans_i[i] == 2'b10:
+          -> the sync signal for the "mate" j is asserted whenever trans_counter_sync[j] == reg_trans_size_sync_dma_ch_i[j] OR
+              trans_counter_sync[j] == reg_trans_size_sync_dma_ch_i[j] - 1
+
+    NOTE: If i has to be synched with j, i must be marked for synch, and synchronization transaction counters of j must be set accordingly
+  */
+  always_comb begin
+    pop_sync = '0;
+
+    if(reg_r_fifo_synch_groups_i == 2'b01) begin
+%for c in range(n_pea_cols):
+  <% a = r_fifo_synch_placement_g2[c][0] %>
+  <% b = r_fifo_synch_placement_g2[c][1] %>
+      if (reg_sync_dma_ch_trans_i[${a}] == 2'b01) begin
+        pop_sync[${b}] = trans_counter_sync_equal[${b}];
+      end else if (reg_sync_dma_ch_trans_i[${a}] == 2'b10) begin
+        pop_sync[${b}] = (trans_counter_sync_equal[${b}] || trans_counter_sync_equal_1[${b}]);
+      end
+%endfor
+    end else if (reg_r_fifo_synch_groups_i == 2'b10) begin
+%for c in range(n_pea_cols):
+  <% a = r_fifo_synch_placement_g3[c][0] %>
+  <% b = r_fifo_synch_placement_g3[c][1] %>
+  <% d = r_fifo_synch_placement_g3[c][2] %>
+      if (reg_sync_dma_ch_trans_i[${a}] == 2'b01) begin
+        pop_sync[${b}] = trans_counter_sync_equal[${b}];
+        pop_sync[${d}] = trans_counter_sync_equal[${d}];
+      end else if (reg_sync_dma_ch_trans_i[${a}] == 2'b10) begin
+        pop_sync[${b}] = (trans_counter_sync_equal[${b}] || trans_counter_sync_equal_1[${b}]);
+        pop_sync[${d}] = (trans_counter_sync_equal[${d}] || trans_counter_sync_equal_1[${d}]);
+      end
+%endfor
+    end else if (reg_r_fifo_synch_groups_i == 2'b11) begin
+%for c in range(n_pea_cols):
+  <% a = r_fifo_synch_placement_g4[c][0] %>
+  <% b = r_fifo_synch_placement_g4[c][1] %>
+  <% d = r_fifo_synch_placement_g4[c][2] %>
+  <% e = r_fifo_synch_placement_g4[c][3] %>
+      if (reg_sync_dma_ch_trans_i[${a}] == 2'b01) begin
+        pop_sync[${b}] = trans_counter_sync_equal[${b}];
+        pop_sync[${e}] = trans_counter_sync_equal[${e}];
+        pop_sync[${d}] = trans_counter_sync_equal[${d}];
+      end else if (reg_sync_dma_ch_trans_i[${a}] == 2'b10) begin
+        pop_sync[${b}] = (trans_counter_sync_equal[${b}] || trans_counter_sync_equal_1[${b}]);
+        pop_sync[${e}] = (trans_counter_sync_equal[${e}] || trans_counter_sync_equal_1[${e}]);
+        pop_sync[${d}] = (trans_counter_sync_equal[${d}] || trans_counter_sync_equal_1[${d}]);
+      end
+%endfor
+    end
 %endif
   end
 
@@ -250,15 +321,15 @@ module streaming_interface
           -> if i (the other "mate") has not reached the end, whenever the pop enable of i and j (the "mates") are asserted
           -> if i (the other "mate") has reached the end, whenever the pop enable of j
   */
-%if len(pea_in_stream_placement[0]) != 1:
+%if r_fifo_synch_placement_type == "g2":
   always_comb begin
 %for c in range(n_pea_cols):
-  <% a = pea_in_stream_placement[c][0] %>
-  <% b = pea_in_stream_placement[c][1] %>
-    if (|reg_sync_dma_ch_trans_i[${a}] == '0 && |reg_sync_dma_ch_trans_i[${b}] == '0) begin
+  <% a = r_fifo_synch_placement_g2[c][0] %>
+  <% b = r_fifo_synch_placement_g2[c][1] %>
+    if ( reg_sync_dma_ch_trans_zero[${a}] && reg_sync_dma_ch_trans_zero[${b}]) begin
       // no sync required
       hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}];
-    end else if (!(|reg_sync_dma_ch_trans_i[${a}] == '0) && |reg_sync_dma_ch_trans_i[${b}] == '0) begin
+    end else if (!( reg_sync_dma_ch_trans_zero[${a}]) && reg_sync_dma_ch_trans_zero[${b}]) begin
       // 0 is mate i and 1 is mate j
       hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}] & hw_r_fifo_pop_enable[${b}] & pop_sync[${b}];
     end else begin
@@ -271,6 +342,82 @@ module streaming_interface
     end
 %endfor
   end
+
+%elif r_fifo_synch_placement_type == "g4":
+
+  always_comb begin
+
+    if(reg_r_fifo_synch_groups_i == 2'b01) begin
+
+%for c in range(n_pea_cols):
+  <% a = r_fifo_synch_placement_g2[c][0] %>
+  <% b = r_fifo_synch_placement_g2[c][1] %>
+      if ( reg_sync_dma_ch_trans_zero[${a}] && reg_sync_dma_ch_trans_zero[${b}]) begin
+        // no sync required
+        hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}];
+      end else if (!( reg_sync_dma_ch_trans_zero[${a}]) && reg_sync_dma_ch_trans_zero[${b}]) begin
+        // 0 is mate i and 1 is mate j
+        hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}] & hw_r_fifo_pop_enable[${b}] & pop_sync[${b}];
+      end else begin
+        // 0 is mate j and 1 is mate i
+        if (hw_r_fifo_empty[${b}] == 1'b1  && |reg_trans_size_sync_dma_ch_i[${a}] == 1'b1) begin
+          hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}];
+        end else begin
+          hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}] & hw_r_fifo_pop_enable[${b}];
+        end
+      end
+%endfor
+
+    end else if(reg_r_fifo_synch_groups_i == 2'b10) begin
+%for c in range(n_pea_cols):
+  <% a = r_fifo_synch_placement_g3[c][0] %>
+  <% b = r_fifo_synch_placement_g3[c][1] %>
+  <% d = r_fifo_synch_placement_g3[c][2] %>
+      if ( reg_sync_dma_ch_trans_zero[${a}] && reg_sync_dma_ch_trans_zero[${b}] && reg_sync_dma_ch_trans_zero[${d}]) begin
+        // no sync required
+        hw_r_fifo_pop[${c}] = hw_r_fifo_pop_enable[${c}];
+      end else if (!( reg_sync_dma_ch_trans_zero[${a}]) && reg_sync_dma_ch_trans_zero[${b}]  && reg_sync_dma_ch_trans_zero[${d}]) begin
+        // 0 is mate i and 1 is mate j
+        hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}] & (hw_r_fifo_pop_enable[${b}] & pop_sync[${b}]) & (hw_r_fifo_pop_enable[${d}] & pop_sync[${d}]);
+      end else begin
+        // 0 is mate j and 1 is mate i
+        if ((hw_r_fifo_empty[${b}] == 1'b1 && hw_r_fifo_empty[${d}] == 1'b1) && |reg_trans_size_sync_dma_ch_i[${a}] == 1'b1) begin
+          hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}];
+        end else begin
+          hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}] & hw_r_fifo_pop_enable[${b}] & hw_r_fifo_pop_enable[${d}];
+        end
+      end
+%endfor
+
+    end else if(reg_r_fifo_synch_groups_i == 2'b11) begin
+%for c in range(n_pea_cols):
+  <% a = r_fifo_synch_placement_g4[c][0] %>
+  <% b = r_fifo_synch_placement_g4[c][1] %>
+  <% d = r_fifo_synch_placement_g4[c][2] %>
+  <% e = r_fifo_synch_placement_g4[c][3] %>
+      if ( reg_sync_dma_ch_trans_zero[${a}] && reg_sync_dma_ch_trans_zero[${b}] && reg_sync_dma_ch_trans_zero[${d}] && reg_sync_dma_ch_trans_zero[${e}]) begin
+        // no sync required
+        hw_r_fifo_pop[${c}] = hw_r_fifo_pop_enable[${c}];
+      end else if (!( reg_sync_dma_ch_trans_zero[${a}]) && reg_sync_dma_ch_trans_zero[${b}]  && reg_sync_dma_ch_trans_zero[${d}]  && reg_sync_dma_ch_trans_zero[${e}]) begin
+        // 0 is mate i and 1 is mate j
+        hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}] & (hw_r_fifo_pop_enable[${b}] & pop_sync[${b}]) & (hw_r_fifo_pop_enable[${d}] & pop_sync[${d}]) & (hw_r_fifo_pop_enable[${e}] & pop_sync[${e}]);
+      end else begin
+        // 0 is mate j and 1 is mate i
+        if ((hw_r_fifo_empty[${b}] == 1'b1 && hw_r_fifo_empty[${d}] == 1'b1 && hw_r_fifo_empty[${e}] == 1'b1) && |reg_trans_size_sync_dma_ch_i[${a}] == 1'b1) begin
+          hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}];
+        end else begin
+          hw_r_fifo_pop[${a}] = hw_r_fifo_pop_enable[${a}] & hw_r_fifo_pop_enable[${b}] & hw_r_fifo_pop_enable[${d}] & hw_r_fifo_pop_enable[${e}];
+        end
+      end
+%endfor
+    end else begin
+%for c in range(n_pea_cols):
+      hw_r_fifo_pop[${c}] = hw_r_fifo_pop_enable[${c}];
+%endfor
+    end
+
+  end
+
 %endif
 
   //--------------------------------- Interface Management and Crossbars
@@ -392,11 +539,21 @@ module streaming_interface
       stream_intf_ready_o[${c}] = hw_w_fifo_full[${c}] == 1'b0;
 %endfor
     end else begin
+%if r_fifo_synch_placement_type == "g2":
 %for c in range(n_pea_cols):
-  <% a = pea_in_stream_placement[c][0] %>
-  <% b = pea_in_stream_placement[c][1] %>
+  <% a = r_fifo_synch_placement_g2[c][0] %>
+  <% b = r_fifo_synch_placement_g2[c][1] %>
       stream_intf_ready_o[${a}] = hw_w_fifo_full[${a}] == 1'b0 && hw_w_fifo_full[${b}] == 1'b0;
 %endfor
+%elif r_fifo_synch_placement_type == "g4":
+%for c in range(n_pea_cols):
+  <% a = r_fifo_synch_placement_g4[c][0] %>
+  <% b = r_fifo_synch_placement_g4[c][1] %>
+  <% d = r_fifo_synch_placement_g4[c][2] %>
+  <% e = r_fifo_synch_placement_g4[c][3] %>
+      stream_intf_ready_o[${a}] = hw_w_fifo_full[${a}] == 1'b0 && hw_w_fifo_full[${b}] == 1'b0 && hw_w_fifo_full[${d}] == 1'b0 && hw_w_fifo_full[${e}] == 1'b0;
+%endfor
+%endif
     end
   end
 
