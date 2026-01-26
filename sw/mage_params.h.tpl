@@ -3,7 +3,11 @@
 
 #include <stdint.h>
 
+%if dae_cgra == 1:
 #include "mage_regs.h"
+%else:
+#include "rogue_regs.h"
+%endif
 
 %if format_full == 1:
 #define MAGE_PARTITIONED 0
