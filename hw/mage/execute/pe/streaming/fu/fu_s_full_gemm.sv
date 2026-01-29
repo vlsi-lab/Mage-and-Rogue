@@ -299,12 +299,12 @@ module fu_s_full_gemm
   */
   always_comb begin
 
-    add_op1   = {a_signed, 1'b0};
-    add_op2   = {b_signed, 1'b0};
-    mul_op1   = a_signed;
-    mul_op2   = b_signed;
-    shift_op1 = {{32{a_signed[N_BITS-1]}}, a_signed};
-    shift_op2 = b_signed;
+    add_op1   = '0;
+    add_op2   = '0;
+    mul_op1   = '0;
+    mul_op2   = '0;
+    shift_op1 = '0;
+    shift_op2 = '0;
 
     case (instr_i)
       NOP: begin
@@ -319,6 +319,21 @@ module fu_s_full_gemm
       ABS: begin
         add_op1 = {op1_neg, 1'b0};
         add_op2 = {32'd1, 1'b0};
+      end
+
+      ADD: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
+      end
+
+      ACC: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
+      end
+
+      MUL: begin
+        mul_op1 = a_signed;
+        mul_op2 = b_signed;
       end
 
       SUB: begin
@@ -348,13 +363,17 @@ module fu_s_full_gemm
 
       LRSH: begin
         shift_op1 = {32'd0, a_signed};
+        shift_op2 = b_signed;
       end
 
       LSH: begin
         shift_op1 = {32'd0, lsh_op1_rev};
+        shift_op2 = b_signed;
       end
 
       ADDPOW: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
         mul_op1 = temp_res;
         mul_op2 = temp_res;
       end
@@ -367,17 +386,21 @@ module fu_s_full_gemm
       end
 
       ADDCMUL: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
         mul_op1 = temp_res;
         mul_op2 = const_i;
       end
 
       CADDMUL: begin
+        add_op1 = {a_signed, 1'b0};
         add_op2 = {const_i, 1'b0};
         mul_op1 = temp_res;
         mul_op2 = temp_op_reg;
       end
 
       CMULADD: begin
+        mul_op1 = a_signed;
         add_op1 = {temp_res, 1'b0};
         add_op2 = {temp_op_reg, 1'b0};
         mul_op2 = const_i;
@@ -391,6 +414,8 @@ module fu_s_full_gemm
       end
 
       MULCARSH: begin
+        mul_op1   = a_signed;
+        mul_op2   = b_signed;
         shift_op1 = {{32{temp_res[N_BITS-1]}}, temp_res};
         shift_op2 = const_i;
       end

@@ -32,7 +32,7 @@
         n_streams: 2,
         n_pe_in_mem : 4,
         n_age_per_stream_ds : [4, 4],
-        acc_pes : [],
+        acc_pes : [4,8,12],
         pea_in_mem_placement : [[0, 1, 4, 5], [0, 1, 4, 5], [2, 3, 6, 7], [2, 3, 6, 7]],
         num_words : 1024,
     },
