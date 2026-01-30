@@ -7,11 +7,10 @@ filesets:
 
   files_packages:
     files:  
-    - hw/mage/packages/obi_pkg.sv
-    - hw/mage/packages/reg_pkg.sv
-    - hw/mage/packages/mage_pkg.sv
+    - hw/mage/packages/agu_pkg.sv
     - hw/mage/packages/pea_pkg.sv
     - hw/mage/packages/xbar_pkg.sv  
+    - hw/mage/packages/stream_intf_pkg.sv
     file_type: systemVerilogSource
 
   files_execute:
@@ -28,15 +27,16 @@ filesets:
     - hw/mage/configuration/mage_reg_top.sv
     - hw/mage/configuration/peripheral_regs.sv
     - hw/mage/xbars/age_to_banks/xbar_age_to_banks.sv
-    - hw/mage/xbars/banks_pea/load_store_stream.sv
-    - hw/mage/xbars/banks_pea/xbar_banks_pea_bb.sv
-    - hw/mage/xbars/banks_pea/xbar_banks_pea.sv
-    - hw/mage/xbars/banks_pea/xbar_banks_pea_pipelined.sv
-    - hw/mage/execute/pe/fu/fu_partitioned.sv
-    - hw/mage/execute/pe/dae_acc_pe.sv
-    - hw/mage/execute/pe/dae_pe.sv
+    - hw/mage/xbars/banks_pea/dmem_pea_select.sv
+    - hw/mage/xbars/banks_pea/xbar_pea_banks.sv
+    - hw/mage/execute/pe/dae/fu/fu_dae_full_gemm.sv
+    #- hw/mage/execute/pe/dae/fu/fu_dae_part_gemm.sv
+    #- hw/mage/execute/pe/dae/fu/fu_dae_part_gemm_acc.sv
+    #- hw/mage/execute/pe/dae/fu/fu_dae_full_act.sv
+    - hw/mage/execute/pe/dae/pe_dae.sv
+    #- hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv
     - hw/mage/execute/pea.sv
-    - hw/mage/mage_top.sv
+    - hw/mage_top.sv
     file_type: systemVerilogSource
 
   files_access:
@@ -48,21 +48,21 @@ filesets:
     - hw/mage/access/age.sv
     - hw/mage/access/age_unit.sv
     - hw/mage/access/cfg_dispatcher.sv
-    - hw/mage/access/mage.sv
+    - hw/mage/access/agu.sv
     file_type: systemVerilogSource
 
   files_memory:
     depend:
     - pulp-platform.org::tech_cells_generic
     files:  
-    - hw/mage/memory/sram_wrapper.sv
+    #- hw/mage/memory/sram_wrapper.sv
     - hw/mage/memory/data_memory.sv
     file_type: systemVerilogSource
 
   files_wrapper:
     files:  
     - hw/mage/dmem_decoder.sv
-    - hw/mage/mage_wrapper.sv
+    - hw/mage_wrapper.sv
     file_type: systemVerilogSource
 
   files_verilator_waiver:

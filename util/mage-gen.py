@@ -128,22 +128,35 @@ def main():
 
 
     kwargs = {
-        "enable_decoupling"                : cfg['enable_decoupling'],
-        "enable_streaming_interface"       : cfg['enable_streaming_interface'],
+        "dae_cgra"                         : cfg['dae_cgra'],
+        "streaming_cgra"                   : cfg['streaming_cgra'],
+        
+        "format_full"                      : cfg['format_full'],
+        "format_part"                      : cfg['format_part'],
+        
+        "gemm_computation"                 : cfg['gemm_computation'],
+        "activation_computation"           : cfg['activation_computation'],
         
         "n_pea_rows"                       : cfg['common_params']['n_pea_rows'],
         "n_pea_cols"                       : cfg['common_params']['n_pea_cols'],
         "n_neigh_pe"                       : cfg['common_params']['n_neigh_pe'],
+        "pattern_neigh_pe"                 : cfg['common_params']['pattern_neigh_pe'],
 
         "kernel_len"                       : cfg['dae_params']['kernel_len'],
         "n_pe_in_mem"                      : cfg['dae_params']['n_pe_in_mem'],
+        "n_streams"                        : cfg['dae_params']['n_streams'],
         "pea_in_mem_placement"             : cfg['dae_params']['pea_in_mem_placement'],
+        "n_age_per_stream_ds"              : cfg['dae_params']['n_age_per_stream_ds'],
         "n_age_tot"                        : cfg['dae_params']['n_age_tot'],
         "n_age_per_stream"                 : cfg['dae_params']['n_age_per_stream'],
         "num_words"                        : cfg['dae_params']['num_words'],
         "acc_pes"                          : cfg['dae_params']['acc_pes'],
 
         "n_pe_in_stream"                   : cfg['streaming_params']['n_pe_in_stream'],
+        "r_fifo_synch_placement_g2"        : cfg['streaming_params']['r_fifo_synch_placement_g2'],
+        "r_fifo_synch_placement_g3"        : cfg['streaming_params']['r_fifo_synch_placement_g3'],
+        "r_fifo_synch_placement_g4"        : cfg['streaming_params']['r_fifo_synch_placement_g4'],
+        "r_fifo_synch_placement_type"      : cfg['streaming_params']['r_fifo_synch_placement_type'],
         "pea_in_stream_placement"          : cfg['streaming_params']['pea_in_stream_placement'],
         "n_dma_ch"                         : cfg['streaming_params']['n_dma_ch'],
         "n_in_stream"                      : cfg['streaming_params']['n_in_stream'],

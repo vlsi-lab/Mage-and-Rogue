@@ -9,14 +9,14 @@
 
 module data_memory
   import pea_pkg::*;
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
     input logic clk_i,
     input logic rst_n_i,
 
     input  logic                                      dmem_set_retentive_i,
     input  logic [N_BANKS-1:0]                        dmem_req_i,
-    input  logic [N_BANKS-1:0]                        dmem_be_i,
+    input  logic [N_BANKS-1:0][                  3:0] dmem_be_i,
     input  logic [N_BANKS-1:0]                        dmem_we_i,
     input  logic [N_BANKS-1:0][$clog2(BANK_SIZE)-1:0] dmem_addr_i,
     input  logic [N_BANKS-1:0][               32-1:0] dmem_wdata_i,
@@ -36,7 +36,7 @@ module data_memory
           .we_i   (dmem_we_i[j]),
           .addr_i (dmem_addr_i[j]),
           .wdata_i(dmem_wdata_i[j]),
-          .be_i   (4'b1111),
+          .be_i   (dmem_be_i[j]),
           .set_retentive_ni (dmem_set_retentive_i),
           .pwrgate_ni(1'b0),
           .pwrgate_ack_no(),
@@ -53,7 +53,7 @@ module data_memory
           .we_i   (dmem_we_i[j]),
           .addr_i (dmem_addr_i[j]),
           .wdata_i(dmem_wdata_i[j]),
-          .be_i   (4'b1111),
+          .be_i   (dmem_be_i[j]),
           .set_retentive_ni (dmem_set_retentive_i),
           .pwrgate_ni(1'b0),
           .pwrgate_ack_no(),

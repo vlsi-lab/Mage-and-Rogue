@@ -5,16 +5,20 @@
 // File: pea_pkg.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: Package for the execute part of Mage
+// Description: Package for CGRA's Processing Element Array
+
+<%import math as m%>
 
 package pea_pkg;
-%if enable_streaming_interface == 1:
+
+%if streaming_cgra == 1:
   import stream_intf_pkg::*;
 %endif
-%if enable_decoupling == 1:
-  import mage_pkg::*;
+%if dae_cgra == 1:
+  import agu_pkg::*;
 %endif
-  <%import math as m%>
+  
+
   ////////////////////////////////////////////////////////////////
   //             Configuration Registers Parameters             //
   ////////////////////////////////////////////////////////////////
@@ -25,52 +29,105 @@ package pea_pkg;
   ////////////////////////////////////////////////////////////////
   //         Processing Element Array (PEA) Parameters          //
   ////////////////////////////////////////////////////////////////
+  
+  ////////////////////////////////
+  //     Common Parameters      //
+  ////////////////////////////////
+  // Number of bits of operands 
   localparam unsigned N_BITS = 32;
-
+  // PEA columns and rows
   localparam unsigned M = ${n_pea_cols};
   localparam unsigned N = ${n_pea_rows};
   localparam unsigned LOG_M = $clog2(M);
   localparam unsigned LOG_N = $clog2(N);
+  // number of neighbouring PEs
+  localparam unsigned N_NEIGH_PE = ${n_neigh_pe};
+  // Number of supported instructions (fixed 5-bit opcode)
+  localparam unsigned N_OPERATIONS = 32;
+  localparam unsigned LOG_N_OPERATIONS = (N_OPERATIONS == 1) ? 1 : $clog2(N_OPERATIONS);
 
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
+  ////////////////////////////////
+  //        DAE PE Groups       //
+  ////////////////////////////////
+  // PE groups
   localparam unsigned N_PE_GROUP = N_STREAMS;
   localparam unsigned N_PE_PER_GROUP = N_AGE_PER_STREAM;
   localparam unsigned LOG_N_PE_PER_GROUP = $clog2(N_PE_PER_GROUP);
 
-  localparam unsigned N_IN_PEA = N_BANKS_GROUP*N_BANKS_PER_STREAM;
-  localparam unsigned N_OUT_PEA = N_PE_GROUP*N_PE_PER_GROUP;
+  localparam unsigned N_IN_PEA = N*2;
+  localparam unsigned N_OUT_PEA = N*2;
 %endif
 
-%if enable_streaming_interface == 1:
+%if activation_computation == 1:
+  ////////////////////////////////
+  // Activation-related Params  //
+  ////////////////////////////////
   localparam unsigned N_RADIX = 16;
   localparam unsigned N_DIV_STAGE = 8;
 %endif
 
-  localparam unsigned N_NEIGH_PE = ${n_neigh_pe};
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
+  ////////////////////////////////
+  //      RF configuration      //
+  ////////////////////////////////
+  localparam unsigned RF_CFG_BITS = 5;
+%endif
+
+  ////////////////////////////////
+  //   Number of PE's inputs    //
+  ////////////////////////////////
+%if streaming_cgra == 1:
   localparam unsigned N_INPUTS_PE = ${n_pe_in_stream + n_neigh_pe + 4};
-  localparam unsigned N_OPERATIONS = 32;
-  localparam unsigned LOG_N_OPERATIONS = (N_OPERATIONS == 1) ? 1 : $clog2(N_OPERATIONS);
-%elif enable_decoupling == 1:
-  localparam unsigned N_INPUTS_PE = ${n_neigh_pe + n_pe_in_mem + 4};
-  localparam unsigned N_OPERATIONS = 16;
-  localparam unsigned LOG_N_OPERATIONS = (N_OPERATIONS == 1) ? 1 : $clog2(N_OPERATIONS);
+%elif dae_cgra == 1:
+  localparam unsigned N_INPUTS_PE = ${n_neigh_pe + n_pe_in_mem + 1};
 %endif
   localparam unsigned LOG_N_INPUTS_PE = (N_INPUTS_PE == 1) ? 1 : $clog2(N_INPUTS_PE);
+  
+  ////////////////////////////////
+  // PE Instruction Word Fields //
+  ////////////////////////////////
+  localparam unsigned OP_A_SEL_LSB       = 0;
+  localparam unsigned OP_A_SEL_MSB       = LOG_N_INPUTS_PE - 1;
+  localparam unsigned OP_B_SEL_LSB       = OP_A_SEL_MSB + 1;
+  localparam unsigned OP_B_SEL_MSB       = OP_B_SEL_LSB + LOG_N_INPUTS_PE - 1;
+  localparam unsigned INSTR_SEL_LSB      = OP_B_SEL_MSB + 1;
+  localparam unsigned INSTR_SEL_MSB      = INSTR_SEL_LSB + LOG_N_OPERATIONS - 1;
+  
+  %if format_part == 1:
+    localparam unsigned VEC_MODE_SEL_LSB   = INSTR_SEL_MSB + 1;
+    localparam unsigned VEC_MODE_SEL_MSB   = VEC_MODE_SEL_LSB + 2 - 1;
+  %endif
+  
+  %if streaming_cgra == 1 and format_part == 1:
+    localparam unsigned RF_SEL_LSB         = VEC_MODE_SEL_MSB + 1;
+    localparam unsigned RF_SEL_MSB         = RF_SEL_LSB + RF_CFG_BITS - 1;
+  %elif streaming_cgra == 1:
+    localparam unsigned RF_SEL_LSB         = INSTR_SEL_MSB + 1;
+    localparam unsigned RF_SEL_MSB         = RF_SEL_LSB + RF_CFG_BITS - 1;
+  %endif
+  
+  %if activation_computation == 1 and streaming_cgra == 1:
+    localparam unsigned DELAY_PE_SEL_LSB    = RF_SEL_MSB + 1;
+    localparam unsigned DELAY_PE_SEL_MSB    = DELAY_PE_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
+    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
+    localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
+  %elif activation_computation == 1 and format_part == 1:
+    localparam unsigned DELAY_PE_SEL_LSB    = VEC_MODE_SEL_MSB + 1;
+    localparam unsigned DELAY_PE_SEL_MSB    = DELAY_PE_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
+    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
+    localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
+  %elif activation_computation == 1:
+    localparam unsigned DELAY_PE_SEL_LSB    = INSTR_SEL_MSB + 1;
+    localparam unsigned DELAY_PE_SEL_MSB    = DELAY_PE_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
+    localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
+    localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
+  %endif
 
-  localparam unsigned RF_CFG_BITS = 5;
-
-  localparam unsigned END_CFG_MUX_SEL_0       = LOG_N_INPUTS_PE - 1;
-  localparam unsigned END_CFG_MUX_SEL_1       = 2 * LOG_N_INPUTS_PE - 1;
-  localparam unsigned END_CFG_OP              = 2 * LOG_N_INPUTS_PE + LOG_N_OPERATIONS - 1;
-  localparam unsigned END_RF_CFG              = 2 * LOG_N_INPUTS_PE + LOG_N_OPERATIONS + RF_CFG_BITS - 1;
-  localparam unsigned END_DELAY_PE_MUX_SEL    = 2 * LOG_N_INPUTS_PE + LOG_N_OPERATIONS + RF_CFG_BITS + $clog2(N_NEIGH_PE) - 1;
-  localparam unsigned END_DELAY_PE_OP_MUX_SEL = 2 * LOG_N_INPUTS_PE + LOG_N_OPERATIONS + RF_CFG_BITS + $clog2(N_NEIGH_PE) + 2 - 1;
-%if enable_decoupling == 1:
-  ////////////////////////////////////////////////////////////////
-  //                Kernel Controller Parameters                //
-  ////////////////////////////////////////////////////////////////
-
+%if dae_cgra == 1:
+  ////////////////////////////////
+  //Kernel Controller Parameters//
+  ////////////////////////////////
   localparam unsigned NBIT_LP_P_K_E = 2;
 
   typedef struct packed {
@@ -80,11 +137,12 @@ package pea_pkg;
     logic [4-1:0] len_dfg;
   } loop_pipeline_info_t;
 %endif
-  ////////////////////////////////////////////////////////////////
-  //         PE Instructions and Interconnections Types         //
-  ////////////////////////////////////////////////////////////////
-%if enable_streaming_interface == 1:
-  typedef enum logic[4:0]{
+
+  ////////////////////////////////
+  //   PE Instruction Opcodes   //
+  ////////////////////////////////
+%if activation_computation == 1:
+  typedef enum logic[LOG_N_OPERATIONS-1:0]{
     NOP       = 5'b00000,
     ABS       = 5'b00001,
     ADD       = 5'b00010,
@@ -114,53 +172,64 @@ package pea_pkg;
     MULCARSH  = 5'b11010,
     CLSHSUB   = 5'b11011
   } fu_instr_t;
-%elif enable_decoupling == 1:
-  typedef enum logic[3:0]{
-    NOP = 4'b0000,
-    MUL = 4'b0001,
-    SUB = 4'b0010,
-    LSH = 4'b0011,
-    LRSH = 4'b0100,
-    ARSH = 4'b0101,
-    MAX = 4'b0110,
-    MIN = 4'b0111,
-    ABS = 4'b1000,
-    SGNMUL = 4'b1001,
-    ADD = 4'b1010
+%elif gemm_computation == 1:
+  typedef enum logic[LOG_N_OPERATIONS-1:0]{
+    NOP       = 5'b00000,
+    MUL       = 5'b00001,
+    SUB       = 5'b00010,
+    LSH       = 5'b00011,
+    LRSH      = 5'b00100,
+    ARSH      = 5'b00101,
+    MAX       = 5'b00110,
+    MIN       = 5'b00111,
+    ABS       = 5'b01000,
+    ACC       = 5'b01001,
+    ADD       = 5'b01010,
+    FW_A      = 5'b01011,
+    FW_B      = 5'b01100
   } fu_instr_t;
-%elif enable_streaming_interface == 1:
-
 %endif
 
+  ////////////////////////////////
+  //     PE Interconnection     //
+  ////////////////////////////////
+
   typedef enum logic [LOG_N_INPUTS_PE-1:0]{
-%if  enable_streaming_interface == 1:
-  CONSTANT   = 4'b0000,
+%if  streaming_cgra == 1:
+    CONSTANT   = 4'b0000,
   %for i in range(n_pe_in_stream):
     STREAM_IN${i} = 4'b${'{:04b}'.format(i+1)},
   %endfor
-  UP         = 4'b${'{:04b}'.format(n_pe_in_stream+1)},
-  LEFT       = 4'b${'{:04b}'.format(n_pe_in_stream+2)},
-  RIGHT      = 4'b${'{:04b}'.format(n_pe_in_stream+3)},
-  DOWN       = 4'b${'{:04b}'.format(n_pe_in_stream+4)},
-  SELF       = 4'b${'{:04b}'.format(n_pe_in_stream+5)},
-  RF         = 4'b${'{:04b}'.format(n_pe_in_stream+6)},
-  DELAY_OP   = 4'b${'{:04b}'.format(n_pe_in_stream+7)}
-%elif enable_decoupling == 1:
-  CONSTANT   = 4'b0000,
-  MEMLEFT0   = 4'b0001,
-  MEMLEFT1   = 4'b0010,
-  MEMRIGHT0  = 4'b0011,
-  MEMRIGHT1  = 4'b0100,
-  UP         = 4'b0101,
-  LEFT       = 4'b0110,
-  RIGHT      = 4'b0111,
-  DOWN       = 4'b1000,
-  SELF       = 4'b1001,
-  RF         = 4'b1010
+    UP         = 4'b${'{:04b}'.format(n_pe_in_stream+1)},
+    LEFT       = 4'b${'{:04b}'.format(n_pe_in_stream+2)},
+    RIGHT      = 4'b${'{:04b}'.format(n_pe_in_stream+3)},
+    DOWN       = 4'b${'{:04b}'.format(n_pe_in_stream+4)},
+    SELF       = 4'b${'{:04b}'.format(n_pe_in_stream+5)},
+    RF         = 4'b${'{:04b}'.format(n_pe_in_stream+6)},
+  %if activation_computation == 1:
+    DELAY_OP   = 4'b${'{:04b}'.format(n_pe_in_stream+7)}
+  %endif
+%elif dae_cgra == 1:
+    CONSTANT   = 4'b0000,
+  %for i in range(n_pe_in_mem):
+    MEM_IN_${i} = 4'b${'{:04b}'.format(i+1)},
+  %endfor
+    UP         = 4'b${'{:04b}'.format(n_pe_in_mem+1)},
+    LEFT       = 4'b${'{:04b}'.format(n_pe_in_mem+2)},
+    RIGHT      = 4'b${'{:04b}'.format(n_pe_in_mem+3)},
+    DOWN       = 4'b${'{:04b}'.format(n_pe_in_mem+4)},
+%if activation_computation == 1:
+    SELF       = 4'b${'{:04b}'.format(n_pe_in_mem+5)},
+%else:
+    SELF       = 4'b${'{:04b}'.format(n_pe_in_mem+5)}
+%endif
+%if activation_computation == 1:
+    DELAY_OP   = 4'b${'{:04b}'.format(n_pe_in_mem+6)}
+%endif
 %endif
   }pe_mux_sel_t;
 
-%if enable_streaming_interface == 1:
+%if activation_computation == 1:
   typedef enum logic [$clog2(N_NEIGH_PE)-1:0] {
     D_UP      = 2'b00,
     D_LEFT    = 2'b01,
@@ -175,7 +244,8 @@ package pea_pkg;
     D_PE_OP_B     = 2'b11
   } delay_pe_op_mux_sel_t;
 %endif
-%if enable_decoupling == 1:
+
+%if dae_cgra == 1:
   ////////////////////////////////////////////////////////////////
   //                         FSM States                         //
   ////////////////////////////////////////////////////////////////

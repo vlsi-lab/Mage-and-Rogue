@@ -1,0 +1,62 @@
+// Copyright 2022 EPFL and Politecnico di Torino.
+// Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+//
+// File: mage_cgf.hjson
+// Author: Alessio Naclerio
+// Date: 11/07/2025
+// Description: Configuration file for Mage
+
+{
+
+    dae_cgra : 1,
+    streaming_cgra : 0,
+
+    format_full : 0,
+    format_part: 1,
+
+    gemm_computation : 1,
+    activation_computation : 0,
+
+    common_params: {
+        n_pea_rows: 4,
+        n_pea_cols: 4,
+        n_neigh_pe: 4,
+        pattern_neigh_pe: ["UP", "LEFT", "RIGHT", "DOWN"],
+    },
+
+    dae_params: {
+        kernel_len : 1,
+        n_age_tot : 8,
+        n_age_per_stream : 4,
+        n_streams: 2,
+        n_pe_in_mem : 4,
+        n_age_per_stream_ds : [4, 4],
+        acc_pes : [4,8,12],
+        pea_in_mem_placement : [[0, 1, 4, 5], [0, 1, 4, 5], [2, 3, 6, 7], [2, 3, 6, 7]],
+        num_words : 1024,
+    },
+
+    streaming_params: {
+        n_pe_in_stream: 4,
+        in_stream_xbar: 0,
+        out_stream_xbar: 1,
+        n_dma_ch: 4,
+        n_in_stream: 4,
+        n_dma_ch_per_in_stream: 1,
+        n_pea_din_per_in_stream: 1,
+        n_out_stream: 4,
+        n_pea_dout_per_out_stream: 2,
+        n_dma_ch_per_out_stream: 1,
+        div_pes : [],
+        is_div_pipe: 1,
+        in_stream_dma_ch_placement : [[0], [1], [2], [3]],
+        out_stream_pea_dout_placement : [[0, 1], [0, 1], [2, 3], [2, 3]],
+        r_fifo_synch_placement_type : "g4",
+        r_fifo_synch_placement_g2 : [[0, 1], [1, 0], [2, 3], [3, 2]],
+        r_fifo_synch_placement_g3 : [[0, 1, 2], [1, 0, 2], [2, 0, 1], [3, 2, 1]],
+        r_fifo_synch_placement_g4 : [[0, 1, 2, 3], [1, 0, 2, 3], [2, 3, 0, 1], [3, 2, 0, 1]],
+        pea_in_stream_placement : [[0, 1, 2, 3], [1, 0, 2, 3], [2, 3, 0, 1], [3, 2, 0, 1]],
+    },
+
+}

@@ -11,7 +11,7 @@
 #define MAGE_PEA_ROWS ${n_pea_rows}
 #define MAGE_PEA_COLS ${n_pea_cols}
 
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
 ////////////////////////////////////////////////////////////////
 //                                                            //
 //                          DAE Mage                          //
@@ -33,7 +33,7 @@
 #define STORE_STREAM_SIZE MAGE_S_STREAM_SEL_AGE_MULTIREG_COUNT
 %endif
 
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
 ////////////////////////////////////////////////////////////////
 //                                                            //
 //                       Streaming Mage                       //
@@ -83,7 +83,7 @@ void mage_set_pea_constants(uint32_t pea_constants[MAGE_PEA_ROWS][MAGE_PEA_COLS]
  */
 void mage_set_pe_constant(uint32_t pea_constant, uint8_t row, uint8_t col);
 
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
 ////////////////////////////////////////////////////////////////
 //                                                            //
 //                          DAE Mage                          //
@@ -271,7 +271,7 @@ void mage_set_store_stream(uint32_t store_stream[STORE_STREAM_SIZE]);
 void mage_set_store_stream_reg(uint32_t store_stream, uint32_t reg);
 
 %endif
-%if enable_streaming_interface == 1:
+%if streaming_cgra == 1:
 ////////////////////////////////////////////////////////////////
 //                                                            //
 //                       Streaming Mage                       //

@@ -3,8 +3,9 @@
   bus_interfaces: [
     { protocol: "reg_iface", direction: "device" }
   ],
+  <%import math as m%>
   registers: [
-%if enable_decoupling == 1:
+%if dae_cgra == 1:
     { name:     "STATUS",
       desc:     "MAGE-CGRA status",
       swaccess: "rw",
@@ -32,29 +33,31 @@
           desc: "Initiation interval" 
         },
         { bits: "4:4", 
-          name: "S_N_T_MAGE",
+          name: "S_N_T_AGU",
           desc: "Static/Time-Multiplexed configuration for MAGE" 
         },
         { bits: "5:5", 
-          name: "S_N_T_mage_PEA",
+          name: "S_N_T_PEA",
           desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
         },
         { bits: "6:6", 
-          name: "S_N_T_mage_PEA_OUT_REGS",
+          name: "S_N_T_PEA_SEL_OUT_REGS",
           desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
         },
         { bits: "7:7", 
-          name: "S_N_T_mage_XBAR",
+          name: "S_N_T_LOAD_STREAM",
           desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
         },
-        { bits: "11:8", 
+        { bits: "8:8", 
+          name: "S_N_T_STREAM_STREAM",
+          desc: "Static/Time-Multiplexed configuration for MAGE-CGRA" 
+        },
+%if format_part == 1:
+        { bits: "12:9", 
           name: "ACC_VEC_MODE",
           desc: "Vector mode for accumulation" 
-        },
-        { bits: "15:12", 
-          name: "BLOCKSIZE",
-          desc: "Blocksize for dmem decoder" 
         }
+%endif
       ]
     },
     { name:     "ILB_HWL",
@@ -78,6 +81,18 @@
         { bits: "31:24", 
           name: "ILB_3",
           desc: "Initial Loop Bound for loop 3" 
+        },
+      ]
+    },
+    { name:     "BLOCK_SIZE",
+      desc:     "Initial Loop Bounds for Hardware Loops",
+      swaccess: "rw",
+      hwaccess: "hro",
+      resval:   0,
+      fields: [
+        { bits: "1:0", 
+          name: "BS",
+          desc: "Initial Loop Bound for loop 0" 
         },
       ]
     },
@@ -129,6 +144,7 @@
         },
       ]
     },
+%if kernel_len != 1:
     { name:     "PEA_CONTROL_SNT",
       desc:     "Each bit controls the control mode of each pe, static or time-multiplexed",
       swaccess: "rw",
@@ -139,6 +155,7 @@
         }
       ]
     },
+%endif
     { multireg:
         { name: "STRIDES",
         desc: "Configuration for AGEs strides",
@@ -166,6 +183,48 @@
         ],
         }
     },
+  %for r in range(int(m.ceil(n_age_tot/8))):
+    { name: "ACC_HWLP_SEL_${r}",
+        desc: "Configuration for AGEs accumulation slection for hwlp rf",
+        swaccess: "rw",
+        hwaccess: "hro",
+        fields: [
+        { bits: "3:0", 
+          name: "S0",
+          desc: "SEL" 
+        },
+        { bits: "7:4", 
+          name: "S1",
+          desc: "SEL" 
+        },
+        { bits: "11:8", 
+          name: "S2",
+          desc: "SEL" 
+        },
+        { bits: "15:12", 
+          name: "S3",
+          desc: "SEL" 
+        },
+        { bits: "19:16", 
+          name: "S4",
+          desc: "SEL" 
+        },
+        { bits: "23:20", 
+          name: "S5",
+          desc: "SEL" 
+        },
+        { bits: "27:24", 
+          name: "S6",
+          desc: "SEL" 
+        },
+        { bits: "31:28", 
+          name: "S7",
+          desc: "SEL" 
+        },
+        ],
+    },
+  %endfor
+%if kernel_len != 1:
     { name:     "PKE",
       desc:     "Length of Prologue, Kernel and Epilogue execution stage, and number of times for Kernel to be repeated",
       swaccess: "rw",
@@ -191,7 +250,7 @@
       ]
     },
 %endif
-  <%import math as m%>
+%endif
 %for r in range(n_pea_rows):
     %for c in range(n_pea_cols):
     { multireg:
@@ -209,12 +268,11 @@
     },
     %endfor
 %endfor
-%if enable_decoupling == 1:
-<%import math as m%>
+%if dae_cgra == 1:
     { multireg:
-        { name: "SEL_OUT_PEA",
-        desc: "Selection signals for output of MAGE-CGRA PEA",
-        count: "${m.ceil(((2*n_pea_rows*m.log2(n_pea_cols))*kernel_len)/32)}",
+        { name: "OUT_PEA_SEL",
+        desc: "Selector for output of MAGE PEA Rows",
+        count: "${m.ceil(((2*n_pea_rows*m.log2(max(n_pea_cols, 4)))*kernel_len)/32)}",
         cname: "ISOP",
         swaccess: "rw",
         hwaccess: "hro",
@@ -225,10 +283,10 @@
         }
     }, 
     { multireg:
-        { name: "L_STREAM_SEL_AGE",
-        desc: "Selection signals for load streams",
-        count: "${int(m.ceil(((n_age_tot*m.log2(n_age_per_stream))*kernel_len)/32))}",
-        cname: "SSS",
+        { name: "LOAD_AGE_SEL",
+        desc: "Selector of Load AGE for PE_GROUP i and PE_ID j",
+        count: "${int(m.ceil(((n_age_tot*m.log2(max(n_age_per_stream,4)))*kernel_len)/32))}",
+        cname: "LAS",
         swaccess: "rw",
         hwaccess: "hro",
         fields: [
@@ -238,10 +296,10 @@
         }
     },
     { multireg:
-        { name: "S_STREAM_SEL_AGE",
-        desc: "Selection signals for store streams",
-        count: "${int(m.ceil(((n_age_tot*m.log2(n_age_per_stream))*kernel_len)/32))}",
-        cname: "LSS",
+        { name: "PEA_DMEM_SEL",
+        desc: "Selector of which (PE_GROUP i and PE_ID j) to connect to (BANK_GROUP i and BANK_ID j)",
+        count: "${int(m.ceil(((n_age_tot*m.log2(max(n_age_per_stream,4)))*kernel_len)/32))}",
+        cname: "PDS",
         swaccess: "rw",
         hwaccess: "hro",
         fields: [
@@ -250,11 +308,10 @@
         ],
         }
     },
-  %for s in range(int(n_age_tot/n_age_per_stream)):
-    %for a in range(n_age_per_stream):
+  %for s in range(n_age_tot):
     { multireg:
-        { name: "CFG_MAGE_S${s}_AGE${a}",
-        desc: "Configuration for AGE ${a} of Stream ${s}",
+        { name: "CFG_MAGE_AGE_${s}",
+        desc: "Configuration for AGE ${s}",
         count : "${kernel_len}",
         cname: "IM",
         swaccess: "rw",
@@ -262,12 +319,11 @@
         fields: [
         { bits: "31:0", 
           name: "AGE_INST",
-          desc: "Instruction for AGE ${a} of Stream ${s}" 
+          desc: "Instruction for AGE ${s}" 
         },
         ],
         }
     },
-    %endfor
   %endfor
 %endif
     { multireg:
@@ -285,6 +341,7 @@
         ],
         }
     },
+%if streaming_cgra == 1:
     { multireg:
         { name: "PEA_RF",
         desc: "PEs RF",
@@ -299,37 +356,7 @@
         },
         ],
         }
-    },
-%if enable_decoupling == 1:
-    { multireg:
-        { name: "AGE_IV_CONSTRAINTS",
-        desc: "Configuration for AGE IV constraints",
-        count : "${int(n_age_tot/4)}",
-        cname: "AGE_IV_CONSTRAINTS",
-        swaccess: "rw",
-        hwaccess: "hro",
-        fields: [
-        { bits: "7:0", 
-          name: "C0",
-          desc: "Constraint 0" 
-        },
-        { bits: "15:8", 
-          name: "C1",
-          desc: "Constraint 1" 
-        },
-        { bits: "23:16", 
-          name: "C2",
-          desc: "Constraint 2" 
-        },
-        { bits: "31:24", 
-          name: "C3",
-          desc: "Constraint 3" 
-        },
-        ],
-        }
-    },
-%endif
-%if enable_streaming_interface == 1:
+    }
   %for i in range(n_dma_ch):
     { name: "TRANS_SIZE_DMA_CH_${i}",
       desc: "Transaction size for DMA channel ${i}. It indicates the number of elements to be read or written by that dma channel. Once the associated down-counter reaches zero, the DMA channel is will receive a done signal",
@@ -368,6 +395,17 @@
       },
       ],
     },
+    %if r_fifo_synch_placement_type == "g4":
+    { name: "R_FIFO_SYNCH_GROUPS",
+      desc: "It makes the related DMA channel (bit 0 -> dma ch 0) work in sync with its stream mate in pea_in_stream_placement based on TRANS_SIZE_SYNC_DMA_CH_{i}. If bit 0 is set to 1, DMA ch 0 will be syncronized to its stream mate based on TRANS_SIZE_SYNC_DMA_CH_{mate}",  
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+      { bits: "1:0",
+      },
+      ],
+    },
+    %endif
     { name: "COLS_GROUPING",
       desc: "If set to 1, each column of Mage works in streaming separately from all the others. If 2, columns are grouped in 2 groups of 2 each. If 0, all columns are grouped together.",
       swaccess: "rw",

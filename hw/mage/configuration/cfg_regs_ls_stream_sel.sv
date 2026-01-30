@@ -9,7 +9,7 @@
 
 module cfg_regs_ls_stream_sel
   import pea_pkg::*;
-  import mage_pkg::*;
+  import agu_pkg::*;
   import xbar_pkg::*;
 (
     input logic [N_BANKS_GROUP-1:0][N_BANKS_PER_STREAM-1:0][KMEM_SIZE-1:0][LOG_N_AGE_PER_STREAM-1:0] reg_cfg_l_stream_sel_i,

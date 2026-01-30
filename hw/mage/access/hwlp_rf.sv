@@ -10,24 +10,24 @@
 
 
 module hwlp_rf
-  import mage_pkg::*;
+  import agu_pkg::*;
 (
-    input  logic                                                    clk_i,
-    input  logic                                                    rst_n_i,
-    input  logic                                                    start_i,
-    input  logic                                                    end_lp_i,
+    input  logic                                                               clk_i,
+    input  logic                                                               rst_n_i,
+    input  pea_pkg::state_t                                                    state_i,
+    input  logic                                                               end_lp_i,
     //Input signal to indicate that the loop variables are valid
-    input  logic                                                    hwlp_valid_i,
-    input  logic [        N_LP-1:0]                                 end_condition_lp_i,
+    input  logic                                                               hwlp_valid_i,
+    input  logic            [        N_LP-1:0]                                 end_condition_lp_i,
     //Input loop variables
-    input  logic [        N_LP-1:0][NBIT_LP_IV-1:0]                 loop_vars_i,
+    input  logic            [        N_LP-1:0][NBIT_LP_IV-1:0]                 loop_vars_i,
     //each bit of hwlp_valid_o indicates the validity of the corresponding location in hwlp_rf_o
-    output logic [HWLP_RF_SIZE-1:0]                                 hwlp_valid_o,
+    output logic            [HWLP_RF_SIZE-1:0]                                 hwlp_valid_o,
     //each location of hwlp_rf_o contains loop variables of one iteration of the loop nest
-    output logic [HWLP_RF_SIZE-1:0][      N_LP-1:0][NBIT_LP_IV-1:0] hwlp_rf_o,
-    output logic [HWLP_RF_SIZE-1:0][      N_LP-1:0]                 end_condition_lp_o,
+    output logic            [HWLP_RF_SIZE-1:0][      N_LP-1:0][NBIT_LP_IV-1:0] hwlp_rf_o,
+    output logic            [HWLP_RF_SIZE-1:0][      N_LP-1:0]                 end_condition_lp_o,
     //end signals
-    output logic [HWLP_RF_SIZE-1:0]                                 end_lp_o
+    output logic            [HWLP_RF_SIZE-1:0]                                 end_lp_o
 );
 
   logic [        N_LP-1:0][NBIT_LP_IV-1:0]                 hwlp_rf_first;
@@ -37,6 +37,9 @@ module hwlp_rf
   logic [HWLP_RF_SIZE-2:0][      N_LP-1:0]                 end_condition_lp;
   logic [HWLP_RF_SIZE-2:0]                                 end_lp;
   logic                                                    hwlp_valid_first;
+  logic                                                    exec;
+
+  assign exec = state_i == pea_pkg::EXEC;
 
   //at each clock cycle, each location of hwlp_rf_o is shifted to the right and loop_vars_i is inserted at the first location
   //This mechanism delays the loop variables
@@ -46,7 +49,7 @@ module hwlp_rf
       hwlp_valid <= '0;
       end_condition_lp <= '0;
     end else begin
-      if (start_i) begin
+      if (exec) begin
         hwlp_rf[0] <= loop_vars_i;
         hwlp_valid[0] <= hwlp_valid_i;
         end_lp[0] <= end_lp_i;
