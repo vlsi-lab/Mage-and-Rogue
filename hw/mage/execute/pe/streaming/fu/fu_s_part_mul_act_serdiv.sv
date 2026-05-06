@@ -2,17 +2,18 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: fu_s_full_gemm.sv
+// File: fu_s_part_mul_act_serdiv.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: FU for streaming mode supporting int32 computation of classic gemm-related operations and activations with pipelined divider
+// Description: FU for streaming mode supporting int32/int16/int8 mul and int32 computation of classic gemm-related operations and activations with serial divider
 
-module fu_s_full_act_pipediv
+module fu_s_part_mul_act_serdiv
   import pea_pkg::*;
 (
     input  logic                   clk_i,
     input  logic                   rst_n_i,
     input  logic                   mage_done_i,
+    input  logic      [       2:0] part_vec_mode_i,
     input  logic      [N_BITS-1:0] a_i,
     input  logic      [N_BITS-1:0] b_i,
     input  fu_instr_t              instr_i,
@@ -44,13 +45,17 @@ module fu_s_full_act_pipediv
 
   // division ready-valid
   logic                out_div_valid;
+  logic                div_ready;
+  logic                div_busy;
   logic                div_input_valid;
+  logic                div_used_once;
   logic                div_instr;
   // accumulation ready-valid
   logic [  N_BITS-1:0] acc_cnt;
   logic                acc_valid;
   // ready-valid
   logic                valid;
+  logic                ready;
   logic                valid_mo_instr;
   logic                mo_instr;
   // +1 adder
@@ -177,13 +182,51 @@ module fu_s_full_act_pipediv
   //assign acc_valid = (acc_cnt[15:0] == reg_acc_value_i && acc_cnt != '0 && ops_valid_i);
   assign acc_valid = (acc_cnt[15:0] == reg_acc_value_i && ops_valid_i);
 
-
   ////////////////////////////////////////////////////////////////
   //                           Division                         //
   ////////////////////////////////////////////////////////////////
 
   // div_input_valid is asserted when the inputs to divider are valid and the instruction has division
   assign div_input_valid = (ops_valid_i && (instr_i == DIV || instr_i == REM)) || (valid_mo_instr && (instr_i == ABSDIV || instr_i == ABSREM || instr_i == CADDDIV));
+
+
+  always_ff @(posedge clk_i, negedge rst_n_i) begin
+    if (!rst_n_i) begin
+      div_busy <= 1'b0;
+    end else begin
+      if (out_div_valid) begin
+        div_busy <= 1'b0;
+      end else begin
+        if (div_input_valid) begin
+          div_busy <= 1'b1;
+        end
+      end
+    end
+  end
+
+  always_ff @(posedge clk_i, negedge rst_n_i) begin
+    if (!rst_n_i) begin
+      div_used_once <= 1'b0;
+    end else begin
+      if (div_busy) begin
+        div_used_once <= 1'b1;
+      end
+    end
+  end
+
+  always_comb begin
+    if (div_busy) begin
+      div_ready = 1'b0;
+      if (out_div_valid) begin
+        div_ready = 1'b1;
+      end
+    end else begin
+      div_ready = 1'b1;
+      if (div_input_valid) begin
+        div_ready = 1'b0;
+      end
+    end
+  end
 
   ////////////////////////////////////////////////////////////////
   //                   Ready-Valid Assignment                   //
@@ -198,15 +241,18 @@ module fu_s_full_act_pipediv
       -> ACC, SHACC, MAX case: it is asserted when acc_valid is asserted
         -> NOTE: MAXS has the loopback logic, but its valid is asserted for all the outputs
       -> 2-cycle instruction case: it is assigned to valid_mo_instr (i.e. ops_valid delayed by one cycle)
-      -> division instruction case: it is asserted when the output of the divider
+      -> division instruction case: it is asserted when the output of the divider is valid and the divider has been effectively launched
 
     Ready:
-      -> the FU is always ready, as also division is pipelined
+      -> For non-division instructions: the FU is always ready
+      -> For division instructions: it is asserted along with div_ready
   */
   always_comb begin
     valid = ops_valid_i;
+    ready = 1'b1;
     if (div_instr) begin
-      valid = out_div_valid;
+      valid = out_div_valid && div_used_once;
+      ready = div_ready;
     end else if (mo_instr) begin
       valid = valid_mo_instr;
     end else begin
@@ -216,7 +262,6 @@ module fu_s_full_act_pipediv
     end
   end
 
-  // valid_mo_instr is ops_valid_i delayed by one cycle, as it is useful for 2-cycle instructions
   always_ff @(posedge clk_i, negedge rst_n_i) begin
     if (!rst_n_i) begin
       valid_mo_instr <= 1'b0;
@@ -228,17 +273,15 @@ module fu_s_full_act_pipediv
   end
 
   assign valid_o = valid;
-  assign ready_o = 1'b1;
-
+  assign ready_o = ready;
 
   ////////////////////////////////////////////////////////////////
-  //                Radix-cfg Pipelined Divider                 //
+  //               Radix-cfg Multi-cycle Divider                //
   ////////////////////////////////////////////////////////////////
 
-  div_wrapper_pipe div_wrapper_pipe_i (
+  div_wrapper div_wrapper_i (
       .clk_i(clk_cg),
       .rst_n_i(rst_n_i),
-      .pea_ready_i(pea_ready_i),
       .a_i(div_op1),
       .b_i(div_op2),
       .in_valid_i(div_input_valid),
@@ -252,15 +295,19 @@ module fu_s_full_act_pipediv
   ////////////////////////////////////////////////////////////////
 
   // Negated versione of a, b and temp_op_reg
-  assign op1_neg    = ~a_signed;
-  assign op2_neg    = ~b_signed;
+  assign op1_neg = ~a_signed;
+  assign op2_neg = ~b_signed;
 
   assign op2_neg_d1 = ~temp_op_reg;
   // 32-bit adder
-  assign add_res    = add_op1 + add_op2;
+  assign add_res = add_op1 + add_op2;
 
-  // 32-bit mul
-  assign mul_res    = mul_op1 * mul_op2;
+  part_mul part_mul_i (
+      .mul_op1_i (mul_op1),
+      .mul_op2_i (mul_op2),
+      .vec_mode_i(part_vec_mode_i),
+      .mul_res_o (mul_res)
+  );
 
   // 32-bit shifter
   logic shift_overflow;
@@ -398,16 +445,6 @@ module fu_s_full_act_pipediv
         div_op2 = b_signed;
       end
 
-      ACC: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {b_signed, 1'b0};
-      end
-
-      ADD: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {b_signed, 1'b0};
-      end
-
       ABS: begin
         add_op1 = {op1_neg, 1'b0};
         add_op2 = {32'd1, 1'b0};
@@ -418,14 +455,19 @@ module fu_s_full_act_pipediv
         add_op2 = {op2_neg, 1'b1};
       end
 
+      ADD: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
+      end
+
+      ACC: begin
+        add_op1 = {a_signed, 1'b0};
+        add_op2 = {b_signed, 1'b0};
+      end
+
       MUL: begin
         mul_op1 = a_signed;
         mul_op2 = b_signed;
-      end
-
-      MAXS: begin
-        add_op1 = {a_signed, 1'b1};
-        add_op2 = {op2_neg, 1'b1};
       end
 
       MIN: begin
@@ -434,6 +476,11 @@ module fu_s_full_act_pipediv
       end
 
       MAX: begin
+        add_op1 = {a_signed, 1'b1};
+        add_op2 = {op2_neg, 1'b1};
+      end
+
+      MAXS: begin
         add_op1 = {a_signed, 1'b1};
         add_op2 = {op2_neg, 1'b1};
       end
@@ -570,10 +617,10 @@ module fu_s_full_act_pipediv
       ABS: res_o = sign_op1 ? add_res[N_BITS:1] : a_signed;
       DIV: res_o = quotient_div;
       REM: res_o = remainder_div;
+      SHACC: res_o = add_res[N_BITS:1];
       ADDPOW: res_o = mul_res;
       SUBPOW: res_o = mul_res;
       ABSDIV: res_o = quotient_div;
-      SHACC: res_o = add_res[N_BITS:1];
       ABSREM: res_o = remainder_div;
       CADDDIV: res_o = quotient_div;
       CADDMUL: res_o = mul_res;

@@ -2,17 +2,18 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: fu_s_full_gemm.sv
+// File: fu_s_part_add_act_serdiv.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: FU for streaming mode supporting int32 computation of classic gemm-related operations and activations with pipelined divider
+// Description: FU for streaming mode supporting int32 computation of classic gemm-related operations and activations with serial divider
 
-module fu_s_full_act_pipediv
+module fu_s_part_add_act_serdiv
   import pea_pkg::*;
 (
     input  logic                   clk_i,
     input  logic                   rst_n_i,
     input  logic                   mage_done_i,
+    input  logic      [       2:0] part_vec_mode_i,
     input  logic      [N_BITS-1:0] a_i,
     input  logic      [N_BITS-1:0] b_i,
     input  fu_instr_t              instr_i,
@@ -44,13 +45,17 @@ module fu_s_full_act_pipediv
 
   // division ready-valid
   logic                out_div_valid;
+  logic                div_ready;
+  logic                div_busy;
   logic                div_input_valid;
+  logic                div_used_once;
   logic                div_instr;
   // accumulation ready-valid
   logic [  N_BITS-1:0] acc_cnt;
   logic                acc_valid;
   // ready-valid
   logic                valid;
+  logic                ready;
   logic                valid_mo_instr;
   logic                mo_instr;
   // +1 adder
@@ -58,7 +63,7 @@ module fu_s_full_act_pipediv
   logic [  N_BITS-1:0] add_one_op2;
   logic [  N_BITS-1:0] add_one_res;
 
-  logic [    N_BITS:0] add_res;
+  logic [  N_BITS-1:0] add_res;
   logic [  N_BITS-1:0] mul_res;
   logic [  N_BITS-1:0] shift_res;
   logic [2*N_BITS-1:0] shift_res_ext;
@@ -71,8 +76,8 @@ module fu_s_full_act_pipediv
   logic [2*N_BITS-1:0] shift_op1;
   logic [         4:0] shift_op2;
 
-  logic [    N_BITS:0] add_op1;
-  logic [    N_BITS:0] add_op2;
+  logic [  N_BITS-1:0] add_op1;
+  logic [  N_BITS-1:0] add_op2;
 
   logic [  N_BITS-1:0] op1_neg;
   logic [  N_BITS-1:0] op2_neg;
@@ -89,6 +94,9 @@ module fu_s_full_act_pipediv
   logic [  N_BITS-1:0] remainder_div;
   logic [  N_BITS-1:0] div_op1;
   logic [  N_BITS-1:0] div_op2;
+
+  // partitioned operators
+  logic [         1:0] part_op_instr;
 
 
   // div_instr is asserted when the instruction contains a division (it is used to clock gate divider)
@@ -168,6 +176,7 @@ module fu_s_full_act_pipediv
     end
   end
 
+
   /*
     valid signal for accumulation:
       -> the acc_valid signal is asserted when (in AND):
@@ -177,13 +186,51 @@ module fu_s_full_act_pipediv
   //assign acc_valid = (acc_cnt[15:0] == reg_acc_value_i && acc_cnt != '0 && ops_valid_i);
   assign acc_valid = (acc_cnt[15:0] == reg_acc_value_i && ops_valid_i);
 
-
   ////////////////////////////////////////////////////////////////
   //                           Division                         //
   ////////////////////////////////////////////////////////////////
 
   // div_input_valid is asserted when the inputs to divider are valid and the instruction has division
   assign div_input_valid = (ops_valid_i && (instr_i == DIV || instr_i == REM)) || (valid_mo_instr && (instr_i == ABSDIV || instr_i == ABSREM || instr_i == CADDDIV));
+
+
+  always_ff @(posedge clk_i, negedge rst_n_i) begin
+    if (!rst_n_i) begin
+      div_busy <= 1'b0;
+    end else begin
+      if (out_div_valid) begin
+        div_busy <= 1'b0;
+      end else begin
+        if (div_input_valid) begin
+          div_busy <= 1'b1;
+        end
+      end
+    end
+  end
+
+  always_ff @(posedge clk_i, negedge rst_n_i) begin
+    if (!rst_n_i) begin
+      div_used_once <= 1'b0;
+    end else begin
+      if (div_busy) begin
+        div_used_once <= 1'b1;
+      end
+    end
+  end
+
+  always_comb begin
+    if (div_busy) begin
+      div_ready = 1'b0;
+      if (out_div_valid) begin
+        div_ready = 1'b1;
+      end
+    end else begin
+      div_ready = 1'b1;
+      if (div_input_valid) begin
+        div_ready = 1'b0;
+      end
+    end
+  end
 
   ////////////////////////////////////////////////////////////////
   //                   Ready-Valid Assignment                   //
@@ -198,15 +245,18 @@ module fu_s_full_act_pipediv
       -> ACC, SHACC, MAX case: it is asserted when acc_valid is asserted
         -> NOTE: MAXS has the loopback logic, but its valid is asserted for all the outputs
       -> 2-cycle instruction case: it is assigned to valid_mo_instr (i.e. ops_valid delayed by one cycle)
-      -> division instruction case: it is asserted when the output of the divider
+      -> division instruction case: it is asserted when the output of the divider is valid and the divider has been effectively launched
 
     Ready:
-      -> the FU is always ready, as also division is pipelined
+      -> For non-division instructions: the FU is always ready
+      -> For division instructions: it is asserted along with div_ready
   */
   always_comb begin
     valid = ops_valid_i;
+    ready = 1'b1;
     if (div_instr) begin
-      valid = out_div_valid;
+      valid = out_div_valid && div_used_once;
+      ready = div_ready;
     end else if (mo_instr) begin
       valid = valid_mo_instr;
     end else begin
@@ -216,7 +266,6 @@ module fu_s_full_act_pipediv
     end
   end
 
-  // valid_mo_instr is ops_valid_i delayed by one cycle, as it is useful for 2-cycle instructions
   always_ff @(posedge clk_i, negedge rst_n_i) begin
     if (!rst_n_i) begin
       valid_mo_instr <= 1'b0;
@@ -228,17 +277,15 @@ module fu_s_full_act_pipediv
   end
 
   assign valid_o = valid;
-  assign ready_o = 1'b1;
-
+  assign ready_o = ready;
 
   ////////////////////////////////////////////////////////////////
-  //                Radix-cfg Pipelined Divider                 //
+  //               Radix-cfg Multi-cycle Divider                //
   ////////////////////////////////////////////////////////////////
 
-  div_wrapper_pipe div_wrapper_pipe_i (
+  div_wrapper div_wrapper_i (
       .clk_i(clk_cg),
       .rst_n_i(rst_n_i),
-      .pea_ready_i(pea_ready_i),
       .a_i(div_op1),
       .b_i(div_op2),
       .in_valid_i(div_input_valid),
@@ -252,15 +299,26 @@ module fu_s_full_act_pipediv
   ////////////////////////////////////////////////////////////////
 
   // Negated versione of a, b and temp_op_reg
-  assign op1_neg    = ~a_signed;
-  assign op2_neg    = ~b_signed;
+  assign op1_neg = ~a_signed;
+  assign op2_neg = ~b_signed;
 
   assign op2_neg_d1 = ~temp_op_reg;
   // 32-bit adder
-  assign add_res    = add_op1 + add_op2;
+  assign part_op_instr = (instr_i == ADD) ? 2'b00 :
+                    (instr_i == SUB) ? 2'b01 :
+                    (instr_i == ACC) ? 2'b10 :
+                    2'b00;
 
   // 32-bit mul
-  assign mul_res    = mul_op1 * mul_op2;
+  assign mul_res = mul_op1 * mul_op2;
+
+  part_add_sub part_add_i (
+      .add_op1_i(add_op1),
+      .add_op2_i(add_op2),
+      .vec_mode_i(part_vec_mode_i),
+      .instr_i(part_op_instr),
+      .add_res_o(add_res)
+  );
 
   // 32-bit shifter
   logic shift_overflow;
@@ -311,13 +369,13 @@ module fu_s_full_act_pipediv
       if (pea_ready_i) begin
         if (ops_valid_i) begin
           if (instr_i == ADDPOW) begin
-            temp_res <= add_res[N_BITS:1];
+            temp_res <= add_res;
           end else if (instr_i == CADDMUL) begin
-            temp_res <= add_res[N_BITS:1];
+            temp_res <= add_res;
           end else if (instr_i == CMULADD) begin
             temp_res <= mul_res;
           end else if (instr_i == ADDCMUL) begin
-            temp_res <= add_res[N_BITS:1];
+            temp_res <= add_res;
           end else if (instr_i == MULCARSH) begin
             temp_res <= mul_res;
           end else if (instr_i == ABSMIN) begin
@@ -325,13 +383,13 @@ module fu_s_full_act_pipediv
           end else if (instr_i == ABSDIV) begin
             temp_res <= add_one_res;
           end else if (instr_i == CADDDIV) begin
-            temp_res <= add_res[N_BITS:1];
+            temp_res <= add_res;
           end else if (instr_i == ABSREM) begin
             temp_res <= add_one_res;
           end else if (instr_i == SGNCSUB) begin
-            temp_res <= add_res[N_BITS:1];
+            temp_res <= add_res;
           end else if (instr_i == SUBPOW) begin
-            temp_res <= add_res[N_BITS:1];
+            temp_res <= add_res;
           end else if (instr_i == CLSHSUB) begin
             temp_res <= lsh_res;
           end
@@ -367,14 +425,16 @@ module fu_s_full_act_pipediv
   */
   always_comb begin
 
-    add_op1   = '0;
-    add_op2   = '0;
-    mul_op1   = '0;
-    mul_op2   = '0;
+    add_op1 = '0;
+    add_op2 = '0;
+    mul_op1 = '0;
+    mul_op2 = '0;
     shift_op1 = '0;
     shift_op2 = '0;
-    div_op1   = '0;
-    div_op2   = '0;
+    div_op1 = '0;
+    div_op2 = '0;
+
+    part_op_instr = 2'b00;  // default to ADD
 
     case (instr_i)
       NOP: begin
@@ -398,24 +458,28 @@ module fu_s_full_act_pipediv
         div_op2 = b_signed;
       end
 
-      ACC: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {b_signed, 1'b0};
+      ABS: begin
+        //add_op1 = {op1_neg, 1'b0};
+        //add_op2 = {32'd1, 1'b0};
+        add_op1 = op1_neg;
+        add_op2 = 32'd1;
+        part_op_instr = 2'b01;  // SUB
       end
 
       ADD: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {b_signed, 1'b0};
+        //add_op1 = {a_signed, 1'b0};
+        //add_op2 = {b_signed, 1'b0};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b00;  // ADD
       end
 
-      ABS: begin
-        add_op1 = {op1_neg, 1'b0};
-        add_op2 = {32'd1, 1'b0};
-      end
-
-      SUB: begin
-        add_op1 = {a_signed, 1'b1};
-        add_op2 = {op2_neg, 1'b1};
+      ACC: begin
+        //add_op1 = {a_signed, 1'b0};
+        //add_op2 = {b_signed, 1'b0};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b10;  // ADD
       end
 
       MUL: begin
@@ -423,19 +487,36 @@ module fu_s_full_act_pipediv
         mul_op2 = b_signed;
       end
 
+      SUB: begin
+        //add_op1 = {a_signed, 1'b1};
+        //add_op2 = {op2_neg, 1'b1};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b01;  // SUB
+      end
+
       MAXS: begin
-        add_op1 = {a_signed, 1'b1};
-        add_op2 = {op2_neg, 1'b1};
+        //add_op1 = {a_signed, 1'b1};
+        //add_op2 = {op2_neg, 1'b1};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b01;  // SUB
       end
 
       MIN: begin
-        add_op1 = {a_signed, 1'b1};
-        add_op2 = {op2_neg, 1'b1};
+        //add_op1 = {a_signed, 1'b1};
+        //add_op2 = {op2_neg, 1'b1};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b01;  // SUB
       end
 
       MAX: begin
-        add_op1 = {a_signed, 1'b1};
-        add_op2 = {op2_neg, 1'b1};
+        //add_op1 = {a_signed, 1'b1};
+        //add_op2 = {op2_neg, 1'b1};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b01;  // SUB
       end
 
       ARSH: begin
@@ -454,37 +535,52 @@ module fu_s_full_act_pipediv
       end
 
       ADDPOW: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {b_signed, 1'b0};
+        //add_op1 = {a_signed, 1'b0};
+        //add_op2 = {b_signed, 1'b0};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b00;  // ADD
         mul_op1 = temp_res;
         mul_op2 = temp_res;
       end
 
       SUBPOW: begin
-        add_op1 = {a_signed, 1'b1};
-        add_op2 = {op2_neg, 1'b1};
+        //add_op1 = {a_signed, 1'b1};
+        //add_op2 = {op2_neg, 1'b1};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b01;  // SUB
         mul_op1 = temp_res;
         mul_op2 = temp_res;
       end
 
       ADDCMUL: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {b_signed, 1'b0};
+        //add_op1 = {a_signed, 1'b0};
+        //add_op2 = {b_signed, 1'b0};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b00;  // ADD
         mul_op1 = temp_res;
         mul_op2 = const_i;
       end
 
       CADDMUL: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {const_i, 1'b0};
+        //add_op1 = {a_signed, 1'b0};
+        //add_op2 = {const_i, 1'b0};
+        add_op1 = a_signed;
+        add_op2 = const_i;
+        part_op_instr = 2'b00;  // ADD
         mul_op1 = temp_res;
         mul_op2 = temp_op_reg;
       end
 
       CMULADD: begin
         mul_op1 = a_signed;
-        add_op1 = {temp_res, 1'b0};
-        add_op2 = {temp_op_reg, 1'b0};
+        //add_op1 = {temp_res, 1'b0};
+        //add_op2 = {temp_op_reg, 1'b0};
+        add_op1 = temp_res;
+        add_op2 = temp_op_reg;
+        part_op_instr = 2'b00;  // ADD
         mul_op2 = const_i;
       end
 
@@ -503,25 +599,29 @@ module fu_s_full_act_pipediv
       end
 
       ABSMIN: begin
-        add_op1 = {temp_res, 1'b1};
-        add_op2 = {op2_neg_d1, 1'b1};
-      end
-
-      ABSDIV: begin
-        div_op1 = temp_res;
-        div_op2 = temp_op_reg;
+        //add_op1 = {temp_res, 1'b1};
+        //add_op2 = {op2_neg_d1, 1'b1};
+        add_op1 = temp_res;
+        add_op2 = temp_op_reg;
+        part_op_instr = 2'b01;  // SUB
       end
 
       SHACC: begin
         shift_op1 = {{32{pe_res_i[N_BITS-1]}}, pe_res_i};
         shift_op2 = a_signed[4:0];
-        add_op1   = {shift_res, 1'b0};
-        add_op2   = {b_signed, 1'b0};
+        //add_op1   = {shift_res, 1'b0};
+        //add_op2   = {b_signed, 1'b0};
+        add_op1 = shift_res;
+        add_op2 = b_signed;
+        part_op_instr = 2'b00;  // ADD
       end
 
       CADDDIV: begin
-        add_op1 = {a_signed, 1'b0};
-        add_op2 = {const_i, 1'b0};
+        //add_op1 = {a_signed, 1'b0};
+        //add_op2 = {const_i, 1'b0};
+        add_op1 = a_signed;
+        add_op2 = const_i;
+        part_op_instr = 2'b00;  // ADD
         div_op1 = temp_op_reg;
         div_op2 = temp_res;
       end
@@ -531,16 +631,27 @@ module fu_s_full_act_pipediv
         div_op2 = temp_op_reg;
       end
 
+      ABSDIV: begin
+        div_op1 = temp_res;
+        div_op2 = temp_op_reg;
+      end
+
       SGNCSUB: begin
-        add_op1 = {const_i, 1'b1};
-        add_op2 = {op2_neg, 1'b1};
+        //add_op1 = {const_i, 1'b1};
+        //add_op2 = {op2_neg, 1'b1};
+        add_op1 = const_i;
+        add_op2 = b_signed;
+        part_op_instr = 2'b01;  // SUB
       end
 
       default: begin
-        add_op1   = {a_signed, 1'b0};
-        add_op2   = {b_signed, 1'b0};
-        mul_op1   = a_signed;
-        mul_op2   = b_signed;
+        //add_op1   = {a_signed, 1'b0};
+        //add_op2   = {b_signed, 1'b0};
+        add_op1 = a_signed;
+        add_op2 = b_signed;
+        part_op_instr = 2'b00;  // ADD
+        mul_op1 = a_signed;
+        mul_op2 = b_signed;
         shift_op1 = {{32{a_signed[N_BITS-1]}}, a_signed};
         shift_op2 = b_signed[4:0];
       end
@@ -551,37 +662,37 @@ module fu_s_full_act_pipediv
   always_comb begin
     case (instr_i)
       NOP: res_o = 0;
-      ADD: res_o = add_res[N_BITS:1];
-      ACC: res_o = add_res[N_BITS:1];
+      ADD: res_o = add_res;
+      ACC: res_o = add_res;
       MUL: res_o = mul_res;
-      SUB: res_o = add_res[N_BITS:1];
+      SUB: res_o = add_res;
       LSH: res_o = lsh_res;
       ARSH: res_o = shift_res;
       LRSH: res_o = shift_res;
       MAX:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
-                                                  ((add_res[N_BITS] == a_signed[N_BITS-1]) ? b_signed : a_signed);
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS-1] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
+                                                  ((add_res[N_BITS-1] == a_signed[N_BITS-1]) ? b_signed : a_signed);
       MAXS:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
-                                                  ((add_res[N_BITS] == a_signed[N_BITS-1]) ? b_signed : a_signed);
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS-1] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
+                                                  ((add_res[N_BITS-1] == a_signed[N_BITS-1]) ? b_signed : a_signed);
       MIN:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS] != a_signed[N_BITS-1]) ? a_signed : b_signed) :
-                                                  ((add_res[N_BITS] == a_signed[N_BITS-1]) ? a_signed : b_signed);
-      ABS: res_o = sign_op1 ? add_res[N_BITS:1] : a_signed;
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS-1] != a_signed[N_BITS-1]) ? a_signed : b_signed) :
+                                                  ((add_res[N_BITS-1] == a_signed[N_BITS-1]) ? a_signed : b_signed);
+      ABS: res_o = sign_op1 ? add_res : a_signed;
       DIV: res_o = quotient_div;
       REM: res_o = remainder_div;
+      SHACC: res_o = add_res;
       ADDPOW: res_o = mul_res;
       SUBPOW: res_o = mul_res;
       ABSDIV: res_o = quotient_div;
-      SHACC: res_o = add_res[N_BITS:1];
       ABSREM: res_o = remainder_div;
       CADDDIV: res_o = quotient_div;
       CADDMUL: res_o = mul_res;
       ADDCMUL: res_o = mul_res;
-      CMULADD: res_o = add_res[N_BITS:1];
-      CLSHSUB: res_o = add_res[N_BITS:1];
+      CMULADD: res_o = add_res;
+      CLSHSUB: res_o = add_res;
       MULCARSH: res_o = shift_res;
-      ABSMIN: res_o = (add_res[N_BITS]) ? temp_res : temp_op_reg;
+      ABSMIN: res_o = (add_res[N_BITS-1]) ? temp_res : temp_op_reg;
       SGNCSUB: res_o = (|temp_op_reg == 1'b0) ? '0 : add_one_res;
       SGNSEL: res_o = delay_sign_i ? b_i : a_i;
       default: res_o = 0;

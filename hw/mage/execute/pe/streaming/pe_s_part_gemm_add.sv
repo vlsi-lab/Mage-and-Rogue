@@ -2,46 +2,51 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: pe_s_part_gemm.sv
+// File: pe_s_part_gemm_add.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: This module is the main building block of the Processing Element Array (PEA) for Mage in streaming mode.
-//              It contains the functional unit (FU) and the input operand multiplexers.
+// Description: PE for streaming mode supporting int32 computation of classic gemm-related operations
 
-module pe_s_part_gemm
+module pe_s_part_gemm_add
   import pea_pkg::*;
 (
     input  logic                                 clk_i,
     input  logic                                 rst_n_i,
+    // overall done signal
     input  logic                                 mage_done_i,
+    // instruction word
     input  logic [N_CFG_BITS_PE-1:0]             ctrl_pe_i,
-    // Streaming Interface
+    // RF values
     input  logic [              1:0]             reg_rf_value_i,
     input  logic [             15:0]             reg_acc_value_i,
-    input  logic                                 pea_ready_i,
     input  logic [       N_BITS-1:0]             reg_const_i,
     output logic                                 reg_pea_rf_de_o,
     output logic [       N_BITS-1:0]             reg_pea_rf_d_o,
+    // overall PEA ready
+    input  logic                                 pea_ready_i,
+    // neighbor data, delay operands and valid signals
     input  logic [  N_INPUTS_PE-4:0][N_BITS-1:0] neigh_pe_op_i,
     input  logic [  N_INPUTS_PE-4:0]             neigh_pe_op_valid_i,
     input  logic [   N_NEIGH_PE-1:0][  N_BITS:0] neigh_delay_op_i,
     input  logic [   N_NEIGH_PE-1:0]             neigh_delay_op_valid_i,
+    // outputs
     output logic                                 valid_o,
     output logic                                 ready_o,
     output logic                                 delay_op_valid_o,
     output logic [         N_BITS:0]             delay_op_o,
     output logic [       N_BITS-1:0]             pe_res_o
-    // end Streaming Interface
 );
 
   logic                                               clk_cg;
-  // output of operands muxes
+  // inputs to FU
   logic                 [     N_BITS-1:0]             op_a;
   logic                 [     N_BITS-1:0]             op_b;
   // mux selectors
   pe_mux_sel_t                                        mux_sel_a;
   pe_mux_sel_t                                        mux_sel_b;
-  // output of operands-valid muxes
+  // vector mode
+  logic                 [            2:0]             part_vec_mode;
+  // operands valid
   logic                                               op_a_valid;
   logic                                               op_b_valid;
   // delay operands signals
@@ -66,7 +71,7 @@ module pe_s_part_gemm
   // accumulation signals
   logic                                               valid;
   logic                                               acc_loopback;
-  //fu signals
+  // fu signals
   logic                 [     N_BITS-1:0]             fu_out;
   fu_instr_t                                          fu_instr;
   // RF
@@ -77,10 +82,9 @@ module pe_s_part_gemm
   logic                 [            4:0]             rf_cfg;
   logic                 [     N_BITS-1:0]             loopback_shacc;
 
-
-  ////////////////////////////////////////////////////////////////
-  //                     Clock-gating cell                      //
-  ////////////////////////////////////////////////////////////////
+  ////////////////////////////////
+  //     Clock-gating cell      //
+  ////////////////////////////////
 `ifndef VERILATOR
 `ifndef FPGA
   // PE Clock-gating
@@ -99,9 +103,9 @@ module pe_s_part_gemm
   assign clk_cg = clk_i;
 `endif
 
-  ////////////////////////////////////////////////////////////////
-  //                      PE Control Word                       //
-  ////////////////////////////////////////////////////////////////
+  ////////////////////////////////
+  //      PE Configuration      //
+  ////////////////////////////////
 
   /*
     PE control signals assignment:
@@ -115,15 +119,16 @@ module pe_s_part_gemm
     if (acc_loopback && fu_instr != SHACC) begin
       mux_sel_a = SELF;
     end else begin
-      mux_sel_a = pe_mux_sel_t'(ctrl_pe_i[END_CFG_MUX_SEL_0 : 0]);
+      mux_sel_a = pe_mux_sel_t'(ctrl_pe_i[OP_A_SEL_MSB : OP_A_SEL_LSB]);
     end
-    mux_sel_b = pe_mux_sel_t'(ctrl_pe_i[END_CFG_MUX_SEL_1 : END_CFG_MUX_SEL_0+1]);
+    mux_sel_b = pe_mux_sel_t'(ctrl_pe_i[OP_B_SEL_MSB : OP_B_SEL_LSB]);
   end
 
-  assign fu_instr = fu_instr_t'(ctrl_pe_i[END_CFG_OP : END_CFG_MUX_SEL_1+1]);
-  assign rf_cfg = ctrl_pe_i[END_RF_CFG : END_CFG_OP+1];
-  assign delay_pe_mux_sel = delay_pe_mux_sel_t'(ctrl_pe_i[END_DELAY_PE_MUX_SEL : END_RF_CFG+1]);
-  assign delay_pe_op_mux_sel  = delay_pe_op_mux_sel_t'(ctrl_pe_i[END_DELAY_PE_OP_MUX_SEL : END_DELAY_PE_MUX_SEL + 1]);
+  assign part_vec_mode = ctrl_pe_i[VEC_MODE_SEL_MSB : VEC_MODE_SEL_LSB];
+  assign fu_instr = fu_instr_t'(ctrl_pe_i[INSTR_SEL_MSB : INSTR_SEL_LSB]);
+  assign rf_cfg = ctrl_pe_i[RF_SEL_MSB : RF_SEL_LSB];
+  assign delay_pe_mux_sel = delay_pe_mux_sel_t'(ctrl_pe_i[DELAY_PE_SEL_MSB : DELAY_PE_SEL_LSB]);
+  assign delay_pe_op_mux_sel  = delay_pe_op_mux_sel_t'(ctrl_pe_i[DELAY_PE_OP_SEL_MSB : DELAY_PE_OP_SEL_LSB]);
 
   /*
     The loopback for SHACC is different, since we cannot waste one source operand for the loopback operand,
@@ -242,10 +247,11 @@ module pe_s_part_gemm
   ////////////////////////////////////////////////////////////////
   //                         Functional Unit                    //
   ////////////////////////////////////////////////////////////////
-  fu_s_full_gemm fu_wrapper_i (
+  fu_s_part_gemm_add fu_wrapper_i (
       .clk_i(clk_cg),
       .rst_n_i(rst_n_i),
       .mage_done_i,
+      .part_vec_mode_i(part_vec_mode),
       .a_i(op_a),
       .b_i(op_b),
       .delay_sign_i(delay_op_fu[N_BITS]),

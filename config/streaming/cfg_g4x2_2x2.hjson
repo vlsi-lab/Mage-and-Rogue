@@ -50,6 +50,8 @@
         n_pea_dout_per_out_stream: 2,
         n_dma_ch_per_out_stream: 1,
         div_pes : [],
+        part_add_pes : [],
+        part_mul_pes : [],
         is_div_pipe: 1,
         in_stream_dma_ch_placement : [[0], [1]],
         r_fifo_synch_placement_type : "g2",

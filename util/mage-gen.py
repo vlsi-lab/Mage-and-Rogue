@@ -168,6 +168,8 @@ def main():
         "in_stream_xbar"                   : cfg['streaming_params']['in_stream_xbar'],
         "out_stream_xbar"                  : cfg['streaming_params']['out_stream_xbar'],
         "div_pes"                          : cfg['streaming_params']['div_pes'],
+        "part_add_pes"                     : cfg['streaming_params']['part_add_pes'],
+        "part_mul_pes"                     : cfg['streaming_params']['part_mul_pes'],
         "is_div_pipe"                      : cfg['streaming_params']['is_div_pipe'],
         "in_stream_dma_ch_placement"       : cfg['streaming_params']['in_stream_dma_ch_placement'],
         "out_stream_pea_dout_placement"    : cfg['streaming_params']['out_stream_pea_dout_placement'],

@@ -46,26 +46,10 @@
 //                           Rogue                            //
 ////////////////////////////////////////////////////////////////
 
-%if n_pea_rows == 2:
-    %if n_pea_cols == 2:
-#define ROGUE_2x2_2x2 1
-    %elif n_pea_cols == 4:
-        %if r_fifo_synch_placement_type == "g2":
-#define ROGUE_2x4_2x2 1
-        %elif r_fifo_synch_placement_type == "g4":
-#define ROGUE_2x4_4x4 1
-        %endif
-    %endif
-%elif n_pea_rows == 4:
-    %if n_pea_cols == 2:
-#define ROGUE_4x2_2x2 1
-    %elif n_pea_cols == 4:
-        %if r_fifo_synch_placement_type == "g2":
-#define ROGUE_4x4_2x2 1
-        %elif r_fifo_synch_placement_type == "g4":
-#define ROGUE_4x4_4x4 1
-        %endif
-    %endif
+%if r_fifo_synch_placement_type == "g2":
+#define ROGUE_G2 1
+%elif r_fifo_synch_placement_type == "g4":
+#define ROGUE_G4 1
 %endif
 
 

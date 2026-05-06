@@ -2,17 +2,18 @@
 // Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
 // SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
 //
-// File: fu_s_full_gemm.sv
+// File: fu_s_part_mul_act_pipediv.sv
 // Author: Alessio Naclerio
 // Date: 26/02/2025
-// Description: FU for streaming mode supporting int32 computation of classic gemm-related operations and activations with pipelined divider
+// Description: FU for streaming mode supporting int32/int16/int8 mul and int32 computation of classic gemm-related operations and activations with pipelined divider
 
-module fu_s_full_act_pipediv
+module fu_s_part_mul_act_pipediv
   import pea_pkg::*;
 (
     input  logic                   clk_i,
     input  logic                   rst_n_i,
     input  logic                   mage_done_i,
+    input  logic      [       2:0] part_vec_mode_i,
     input  logic      [N_BITS-1:0] a_i,
     input  logic      [N_BITS-1:0] b_i,
     input  fu_instr_t              instr_i,
@@ -252,15 +253,19 @@ module fu_s_full_act_pipediv
   ////////////////////////////////////////////////////////////////
 
   // Negated versione of a, b and temp_op_reg
-  assign op1_neg    = ~a_signed;
-  assign op2_neg    = ~b_signed;
+  assign op1_neg = ~a_signed;
+  assign op2_neg = ~b_signed;
 
   assign op2_neg_d1 = ~temp_op_reg;
   // 32-bit adder
-  assign add_res    = add_op1 + add_op2;
+  assign add_res = add_op1 + add_op2;
 
-  // 32-bit mul
-  assign mul_res    = mul_op1 * mul_op2;
+  part_mul part_mul_i (
+      .mul_op1_i (mul_op1),
+      .mul_op2_i (mul_op2),
+      .vec_mode_i(part_vec_mode_i),
+      .mul_res_o (mul_res)
+  );
 
   // 32-bit shifter
   logic shift_overflow;

@@ -412,12 +412,23 @@ logic out_delay_op_valid${r}${c};
   ////////////////////////////////
   %for r in range(n_pea_rows):
     %for c in range(n_pea_cols):
-      %if (int(r) * int(n_pea_cols) + int(c)) in div_pes:
-        % if is_div_pipe == 1:
+
+      %if ((int(r) * int(n_pea_cols) + int(c)) in div_pes) and ((int(r) * int(n_pea_cols) + int(c)) in part_add_pes) and (is_div_pipe == 1):
+  pe_s_part_add_act_pipediv pe_s_part_add_act_pipediv_${r}${c} (
+      %elif ((int(r) * int(n_pea_cols) + int(c)) in div_pes) and ((int(r) * int(n_pea_cols) + int(c)) in part_add_pes) and (is_div_pipe == 0):
+  pe_s_part_add_act_serdiv pe_s_part_add_act_serdiv_${r}${c} (
+      %elif ((int(r) * int(n_pea_cols) + int(c)) in div_pes) and ((int(r) * int(n_pea_cols) + int(c)) in part_mul_pes) and (is_div_pipe == 1):
+  pe_s_part_mul_act_pipediv pe_s_part_mul_act_pipediv_${r}${c} (
+      %elif ((int(r) * int(n_pea_cols) + int(c)) in div_pes) and ((int(r) * int(n_pea_cols) + int(c)) in part_mul_pes) and (is_div_pipe == 0):
+  pe_s_part_mul_act_serdiv pe_s_part_mul_act_serdiv_${r}${c} (
+      %elif ((int(r) * int(n_pea_cols) + int(c)) in div_pes) and (is_div_pipe == 1):
   pe_s_full_act_pipediv pe_s_full_act_pipediv_${r}${c} (
-        %else:
+      %elif ((int(r) * int(n_pea_cols) + int(c)) in div_pes) and (is_div_pipe == 0):
   pe_s_full_act_serdiv pe_s_full_act_serdiv_${r}${c} (
-        %endif
+      %elif ((int(r) * int(n_pea_cols) + int(c)) in part_add_pes):
+  pe_s_part_gemm_add pe_s_gemm_part_add_${r}${c} (
+      %elif ((int(r) * int(n_pea_cols) + int(c)) in part_mul_pes):
+  pe_s_part_gemm_mul pe_s_gemm_part_mul_${r}${c} (
       %else:
   pe_s_full_gemm pe_s_full_gemm_${r}${c} (
       %endif

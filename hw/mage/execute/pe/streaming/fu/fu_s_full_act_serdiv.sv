@@ -73,7 +73,7 @@ module fu_s_full_act_serdiv
 
   logic [  N_BITS-1:0] lsh_op1_rev;
   logic [2*N_BITS-1:0] shift_op1;
-  logic [  N_BITS-1:0] shift_op2;
+  logic [         4:0] shift_op2;
 
   logic [    N_BITS:0] add_op1;
   logic [    N_BITS:0] add_op2;
@@ -294,19 +294,21 @@ module fu_s_full_act_serdiv
   ////////////////////////////////////////////////////////////////
 
   // Negated versione of a, b and temp_op_reg
-  assign op1_neg = ~a_signed;
-  assign op2_neg = ~b_signed;
+  assign op1_neg    = ~a_signed;
+  assign op2_neg    = ~b_signed;
 
   assign op2_neg_d1 = ~temp_op_reg;
   // 32-bit adder
-  assign add_res = add_op1 + add_op2;
+  assign add_res    = add_op1 + add_op2;
 
   // 32-bit mul
-  assign mul_res = mul_op1 * mul_op2;
+  assign mul_res    = mul_op1 * mul_op2;
 
   // 32-bit shifter
-  assign shift_res_ext = shift_op1 >>> shift_op2;
-  assign shift_res = shift_res_ext[31:0];
+  logic shift_overflow;
+  assign shift_overflow = |b_signed[N_BITS-1:5];
+  assign shift_res_ext  = shift_op1 >>> shift_op2;
+  assign shift_res      = shift_overflow ? '0 : shift_res_ext[31:0];
 
   // LHS logic
   generate
@@ -480,17 +482,17 @@ module fu_s_full_act_serdiv
 
       ARSH: begin
         shift_op1 = {{32{a_signed[N_BITS-1]}}, a_signed};
-        shift_op2 = b_signed;
+        shift_op2 = b_signed[4:0];
       end
 
       LRSH: begin
         shift_op1 = {32'd0, a_signed};
-        shift_op2 = b_signed;
+        shift_op2 = b_signed[4:0];
       end
 
       LSH: begin
         shift_op1 = {32'd0, lsh_op1_rev};
-        shift_op2 = b_signed;
+        shift_op2 = b_signed[4:0];
       end
 
       ADDPOW: begin
@@ -532,12 +534,12 @@ module fu_s_full_act_serdiv
         mul_op1   = a_signed;
         mul_op2   = b_signed;
         shift_op1 = {{32{temp_res[N_BITS-1]}}, temp_res};
-        shift_op2 = const_i;
+        shift_op2 = const_i[4:0];
       end
 
       CLSHSUB: begin
         shift_op1 = {32'd0, lsh_op1_rev};
-        shift_op2 = const_i;
+        shift_op2 = const_i[4:0];
         add_op1   = {temp_res, 1'b1};
         add_op2   = {op2_neg_d1, 1'b1};
       end
@@ -554,7 +556,7 @@ module fu_s_full_act_serdiv
 
       SHACC: begin
         shift_op1 = {{32{pe_res_i[N_BITS-1]}}, pe_res_i};
-        shift_op2 = a_signed;
+        shift_op2 = a_signed[4:0];
         add_op1   = {shift_res, 1'b0};
         add_op2   = {b_signed, 1'b0};
       end
@@ -582,7 +584,7 @@ module fu_s_full_act_serdiv
         mul_op1   = a_signed;
         mul_op2   = b_signed;
         shift_op1 = {{32{a_signed[N_BITS-1]}}, a_signed};
-        shift_op2 = b_signed;
+        shift_op2 = b_signed[4:0];
       end
     endcase
   end
@@ -599,14 +601,14 @@ module fu_s_full_act_serdiv
       ARSH: res_o = shift_res;
       LRSH: res_o = shift_res;
       MAX:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS-1] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
-                                                  ((add_res[N_BITS-1] == a_signed[N_BITS-1]) ? b_signed : a_signed);
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
+                                                  ((add_res[N_BITS] == a_signed[N_BITS-1]) ? b_signed : a_signed);
       MAXS:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS-1] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
-                                                  ((add_res[N_BITS-1] == a_signed[N_BITS-1]) ? b_signed : a_signed);
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS] != a_signed[N_BITS-1]) ? b_signed : a_signed) :
+                                                  ((add_res[N_BITS] == a_signed[N_BITS-1]) ? b_signed : a_signed);
       MIN:
-      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS-1] != a_signed[N_BITS-1]) ? a_signed : b_signed) :
-                                                  ((add_res[N_BITS-1] == a_signed[N_BITS-1]) ? a_signed : b_signed);
+      res_o = (a_signed[N_BITS-1] == 1'b0) ? ((add_res[N_BITS] != a_signed[N_BITS-1]) ? a_signed : b_signed) :
+                                                  ((add_res[N_BITS] == a_signed[N_BITS-1]) ? a_signed : b_signed);
       ABS: res_o = sign_op1 ? add_res[N_BITS:1] : a_signed;
       DIV: res_o = quotient_div;
       REM: res_o = remainder_div;
@@ -621,7 +623,7 @@ module fu_s_full_act_serdiv
       CMULADD: res_o = add_res[N_BITS:1];
       CLSHSUB: res_o = add_res[N_BITS:1];
       MULCARSH: res_o = shift_res;
-      ABSMIN: res_o = (add_res[N_BITS-1]) ? temp_res : temp_op_reg;
+      ABSMIN: res_o = (add_res[N_BITS]) ? temp_res : temp_op_reg;
       SGNCSUB: res_o = (|temp_op_reg == 1'b0) ? '0 : add_one_res;
       SGNSEL: res_o = delay_sign_i ? b_i : a_i;
       default: res_o = 0;

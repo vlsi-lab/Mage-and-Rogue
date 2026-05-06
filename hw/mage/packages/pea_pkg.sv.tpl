@@ -94,15 +94,12 @@ package pea_pkg;
   localparam unsigned INSTR_SEL_LSB      = OP_B_SEL_MSB + 1;
   localparam unsigned INSTR_SEL_MSB      = INSTR_SEL_LSB + LOG_N_OPERATIONS - 1;
   
-  %if format_part == 1:
+  %if dae_cgra == 1 and format_part == 1:
     localparam unsigned VEC_MODE_SEL_LSB   = INSTR_SEL_MSB + 1;
     localparam unsigned VEC_MODE_SEL_MSB   = VEC_MODE_SEL_LSB + 2 - 1;
   %endif
   
-  %if streaming_cgra == 1 and format_part == 1:
-    localparam unsigned RF_SEL_LSB         = VEC_MODE_SEL_MSB + 1;
-    localparam unsigned RF_SEL_MSB         = RF_SEL_LSB + RF_CFG_BITS - 1;
-  %elif streaming_cgra == 1:
+  %if streaming_cgra == 1:
     localparam unsigned RF_SEL_LSB         = INSTR_SEL_MSB + 1;
     localparam unsigned RF_SEL_MSB         = RF_SEL_LSB + RF_CFG_BITS - 1;
   %endif
@@ -122,6 +119,11 @@ package pea_pkg;
     localparam unsigned DELAY_PE_SEL_MSB    = DELAY_PE_SEL_LSB + $clog2(N_NEIGH_PE) - 1;
     localparam unsigned DELAY_PE_OP_SEL_LSB = DELAY_PE_SEL_MSB + 1;
     localparam unsigned DELAY_PE_OP_SEL_MSB = DELAY_PE_OP_SEL_LSB + 2 - 1;
+  %endif
+
+  %if streaming_cgra == 1 and format_part == 1:
+    localparam unsigned VEC_MODE_SEL_LSB   = DELAY_PE_OP_SEL_MSB + 1;
+    localparam unsigned VEC_MODE_SEL_MSB   = VEC_MODE_SEL_LSB + 3 - 1;
   %endif
 
 %if dae_cgra == 1:

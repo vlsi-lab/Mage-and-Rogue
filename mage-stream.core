@@ -27,16 +27,26 @@ filesets:
     - hw/mage/execute/pe/div/div_wrapper.sv
     - hw/mage/execute/pe/div/r_div_pipe.sv
     - hw/mage/execute/pe/div/div_wrapper_pipe.sv
+    - hw/mage/execute/pe/part_mul.sv
+    - hw/mage/execute/pe/part_add_sub.sv
     - hw/mage/execute/pe/streaming/fu/fu_s_full_gemm.sv
     - hw/mage/execute/pe/streaming/fu/fu_s_full_act_serdiv.sv
     - hw/mage/execute/pe/streaming/fu/fu_s_full_act_pipediv.sv
-    - hw/mage/execute/pe/streaming/fu/fu_s_part_gemm.sv
-    - hw/mage/execute/pe/streaming/fu/fu_s_part_gemm_acc.sv
+    - hw/mage/execute/pe/streaming/fu/fu_s_part_gemm_add.sv
+    - hw/mage/execute/pe/streaming/fu/fu_s_part_gemm_mul.sv
+    - hw/mage/execute/pe/streaming/fu/fu_s_part_add_act_pipediv.sv
+    - hw/mage/execute/pe/streaming/fu/fu_s_part_add_act_serdiv.sv
+    - hw/mage/execute/pe/streaming/fu/fu_s_part_mul_act_pipediv.sv
+    - hw/mage/execute/pe/streaming/fu/fu_s_part_mul_act_serdiv.sv
     - hw/mage/execute/pe/streaming/pe_s_full_gemm.sv
     - hw/mage/execute/pe/streaming/pe_s_full_act_serdiv.sv
     - hw/mage/execute/pe/streaming/pe_s_full_act_pipediv.sv
-    - hw/mage/execute/pe/streaming/pe_s_part_gemm.sv
-    - hw/mage/execute/pe/streaming/pe_s_part_gemm_acc.sv
+    - hw/mage/execute/pe/streaming/pe_s_part_gemm_add.sv
+    - hw/mage/execute/pe/streaming/pe_s_part_gemm_mul.sv
+    - hw/mage/execute/pe/streaming/pe_s_part_add_act_pipediv.sv
+    - hw/mage/execute/pe/streaming/pe_s_part_add_act_serdiv.sv
+    - hw/mage/execute/pe/streaming/pe_s_part_mul_act_pipediv.sv
+    - hw/mage/execute/pe/streaming/pe_s_part_mul_act_serdiv.sv
     - hw/mage/execute/pea.sv
     - hw/mage_top.sv
     file_type: systemVerilogSource
