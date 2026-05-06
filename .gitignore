@@ -10,6 +10,8 @@ vivado.log
 /hw/mage/stream/streaming_interface.sv
 /hw/mage/packages/stream_intf_pkg.sv
 /hw/mage/execute/pea.sv
+/hw/mage/execute/pe/dae/pe_dae.sv
+/hw/mage/execute/pe/dae/pe_dae_part_gemm_acc.sv
 /hw/mage/packages/agu_pkg.sv
 /hw/mage/packages/xbar_pkg.sv
 /hw/mage/access/age.sv
